@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import warnings
+warnings.filterwarnings("ignore", message="FP16 is not supported on CPU; using FP32 instead")
 import argparse
 import tempfile
 import os
