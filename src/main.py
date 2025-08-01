@@ -3,6 +3,7 @@ import argparse
 import tempfile
 import os
 import yt_dlp
+import whisper
 
 
 def download_video(url, tmpdir):
@@ -23,6 +24,12 @@ def download_video(url, tmpdir):
     return filepath
 
 
+def transcribe_video(video_path):
+    model = whisper.load_model("base")
+    result = model.transcribe(video_path)
+    return result["text"]
+
+
 def main():
     parser = argparse.ArgumentParser(description="Download, transcribe, summarize, and post video.")
     parser.add_argument('url', help='Video URL (YouTube, Instagram, TikTok)')
@@ -32,7 +39,9 @@ def main():
         print(f"Working in temp dir: {tmpdir}")
         video_path = download_video(args.url, tmpdir)
         print(f"Downloaded video to: {video_path}")
-        # TODO: Transcribe, summarize, post, cleanup
+        transcript = transcribe_video(video_path)
+        print(f"Transcript:\n{transcript}")
+        # TODO: Summarize, post, cleanup
 
 if __name__ == "__main__":
     main()
