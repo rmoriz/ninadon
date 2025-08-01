@@ -151,16 +151,21 @@ def main():
 
     with tempfile.TemporaryDirectory() as tmpdir:
         print(f"Working in temp dir: {tmpdir}")
+        print("Starting download...")
         video_path, description, uploader = download_video(args.url, tmpdir)
         print(f"Downloaded video to: {video_path}")
         print(f"Uploader: {uploader}")
         print(f"Description: {description}")
+        print("Starting transcription...")
         transcript = transcribe_video(video_path)
         print(f"Transcript:\n{transcript}")
+        print("Starting summarization...")
         summary = summarize_text(transcript, description, uploader)
         print(f"Summary:\n{summary}")
+        print("Checking if transcoding is needed...")
         final_video_path = maybe_reencode(video_path, tmpdir)
         print(f"Final video for posting: {final_video_path}")
+        print("Starting Mastodon post...")
         mastodon_url = post_to_mastodon(summary, final_video_path, args.url)
         print(f"Mastodon post URL: {mastodon_url}")
         # Temp files are cleaned up automatically
