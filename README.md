@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="docs/logo.png" alt="ninadon logo" width="200" />
+</div>
+
 # ninadon
 
 Automate the workflow of downloading a video (YouTube, Instagram, TikTok), transcribing it with OpenAI Whisper, summarizing with OpenRouter AI, optionally re-encoding to H.265, and posting the summary and video to Mastodon.
