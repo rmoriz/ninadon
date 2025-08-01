@@ -87,6 +87,10 @@ docker run --rm \
 
 ## Example Output
 
+### Example Mastodon Post
+
+![Example Mastodon Post](docs/example-mastodon-post.png)
+
 ```
 Working in temp dir: /tmp/tmpabcd1234
 Downloaded video to: /tmp/tmpabcd1234/video.mp4
