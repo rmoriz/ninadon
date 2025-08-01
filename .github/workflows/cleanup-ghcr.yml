@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up GitHub CLI
-        uses: cli/cli-action@v2
+        uses: cli/gh-action@v2
 
       - name: Delete old untagged images, keep 3 most recent
         env:
