@@ -11,15 +11,45 @@ from mastodon import Mastodon
 
 def download_video(url, tmpdir):
     outtmpl = os.path.join(tmpdir, 'video.%(ext)s')
+    # Step 1: Extract info without downloading
+    ydl_opts_info = {'quiet': True}
+    with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:
+        info = ydl.extract_info(url, download=False)
+    # Step 2: Find best format <100MB, else smallest
+    formats = info.get('formats', [])
+    best_format = None
+    best_size = None
+    under_100mb = []
+    for f in formats:
+        # Only consider formats with both video and audio, and with a known size
+        if not f.get('vcodec') or f.get('vcodec') == 'none':
+            continue
+        if not f.get('acodec') or f.get('acodec') == 'none':
+            continue
+        size = f.get('filesize') or f.get('filesize_approx')
+        if not size:
+            continue
+        if size < 100 * 1024 * 1024:
+            under_100mb.append((size, f))
+        if best_size is None or size < best_size:
+            best_size = size
+            best_format = f
+    if under_100mb:
+        # Pick the largest under 100MB (best quality under limit)
+        selected_format = max(under_100mb, key=lambda x: x[0])[1]
+    else:
+        # Pick the smallest available
+        selected_format = best_format
+    format_id = selected_format['format_id']
+    # Step 3: Download the selected format
     ydl_opts = {
         'outtmpl': outtmpl,
-        'format': 'bestvideo+bestaudio/best',
+        'format': format_id,
         'merge_output_format': 'mp4',
         'quiet': True,
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)
-        # Get the actual file path after post-processing
         if 'requested_downloads' in info:
             filepath = info['requested_downloads'][0]['filepath']
         else:
