@@ -16,7 +16,7 @@ RUN chown -R appuser:appuser /home/appuser
 RUN mkdir -p /app/.cache && chown -R appuser:appuser /app
 ENV HOME=/home/appuser
 
-# Switch to non-root user for pip install and model download
+# Switch to non-root user for all remaining steps
 USER appuser
 
 # Install Whisper and pre-download model as appuser
@@ -25,15 +25,9 @@ RUN grep openai-whisper requirements.whisper.txt > whisper-only.txt
 RUN pip install --no-cache-dir -r whisper-only.txt
 RUN python -c "import whisper; whisper.load_model('base')"
 
-# Switch back to root for remaining steps
-USER root
-
-# Install all other dependencies and app code as root
+# Install all other dependencies and app code as appuser
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 COPY src/ ./src/
-
-# Switch to appuser for runtime
-USER appuser
 
 ENTRYPOINT ["python", "src/main.py"]
