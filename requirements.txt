@@ -1,0 +1,4 @@
+yt-dlp
+openai-whisper
+Mastodon.py
+requests
