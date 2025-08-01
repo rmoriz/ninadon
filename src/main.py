@@ -5,6 +5,7 @@ import os
 import yt_dlp
 import whisper
 import requests
+import subprocess
 
 
 def download_video(url, tmpdir):
@@ -54,6 +55,20 @@ def summarize_text(transcript):
     return summary
 
 
+def maybe_reencode(video_path, tmpdir):
+    size_mb = os.path.getsize(video_path) / (1024 * 1024)
+    if size_mb > 25:
+        reencoded_path = os.path.join(tmpdir, "video_h265.mp4")
+        print(f"Re-encoding {video_path} to H.265 (size: {size_mb:.2f}MB)...")
+        subprocess.run([
+            "ffmpeg", "-i", video_path, "-c:v", "libx265", "-crf", "35", "-c:a", "copy", reencoded_path
+        ], check=True)
+        print(f"Re-encoded video saved to: {reencoded_path}")
+        return reencoded_path
+    else:
+        return video_path
+
+
 def main():
     parser = argparse.ArgumentParser(description="Download, transcribe, summarize, and post video.")
     parser.add_argument('url', help='Video URL (YouTube, Instagram, TikTok)')
@@ -67,6 +82,8 @@ def main():
         print(f"Transcript:\n{transcript}")
         summary = summarize_text(transcript)
         print(f"Summary:\n{summary}")
+        final_video_path = maybe_reencode(video_path, tmpdir)
+        print(f"Final video for posting: {final_video_path}")
         # TODO: Post, cleanup
 
 if __name__ == "__main__":
