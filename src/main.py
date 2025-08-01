@@ -45,12 +45,11 @@ def download_video(url, tmpdir):
             total = vsize + asize
             # yt-dlp Format-String: "video_id+audio_id"
             candidates.append((total, f"{v['format_id']}+{a['format_id']}"))
-    # Unter 100MB suchen
-    under_100mb = [c for c in candidates if c[0] < 100*1024*1024]
+    # Unter 75MB suchen
+    under_75mb = [c for c in candidates if c[0] < 75*1024*1024]
     if candidates:
-        if under_100mb:
-            selected = max(under_100mb, key=lambda x: x[0])
-        else:
+if under_75mb:
+        selected = max(under_75mb, key=lambda x: x[0])        else:
             selected = min(candidates, key=lambda x: x[0])
         format_id = selected[1]
         # Step 3: Download the selected format or pair
