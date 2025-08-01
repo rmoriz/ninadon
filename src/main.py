@@ -48,12 +48,12 @@ def download_video(url, tmpdir):
     # Unter 75MB suchen
     under_75mb = [c for c in candidates if c[0] < 75*1024*1024]
     if candidates:
-    if under_75mb:
-        selected = max(under_75mb, key=lambda x: x[0])
-    else:
-        selected = min(candidates, key=lambda x: x[0])
-    format_id = selected[1]
-    # Step 3: Download the selected format or pair
+        if under_75mb:
+            selected = max(under_75mb, key=lambda x: x[0])
+        else:
+            selected = min(candidates, key=lambda x: x[0])
+        format_id = selected[1]
+        # Step 3: Download the selected format or pair
         ydl_opts = {
             'outtmpl': outtmpl,
             'format': format_id,
@@ -76,6 +76,7 @@ def download_video(url, tmpdir):
                     filepath = info['requested_downloads'][0]['filepath']
                 else:
                     filepath = ydl.prepare_filename(info)
+
     else:
         print("No directly downloadable formats found! Available formats:")
         for f in formats:

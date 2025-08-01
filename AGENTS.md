@@ -1,0 +1,23 @@
+# AGENTS.md
+
+## Build, Lint, and Test Commands
+- **Install dependencies:** `pip install -r requirements.txt`
+- **Build Docker image:** `docker build .`
+- **Run app:** `python src/main.py <video_url>`
+- **Lint (recommended):** `ruff src/` or `flake8 src/` (add to requirements if needed)
+- **Test:** No tests found. If using pytest: `pytest tests/test_main.py::test_func`
+
+## Code Style Guidelines
+- **Imports:** Standard library, then third-party, then local imports.
+- **Formatting:** 4 spaces per indent, blank lines between functions.
+- **Types:** Type hints not required but encouraged for new code.
+- **Naming:**
+  - Functions/variables: `snake_case`
+  - Constants: `UPPER_SNAKE_CASE`
+  - Classes: `CamelCase`
+- **Error Handling:** Use try/except; raise `RuntimeError` for critical errors (e.g., missing env vars).
+- **Environment:** Use env vars for config (API keys, URLs, timeouts).
+- **Logging:** Use `print()` for logs; consider `logging` for larger projects.
+- **Entrypoint:** Guard main logic with `if __name__ == "__main__":`
+
+_No Cursor or Copilot rules detected._
