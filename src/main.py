@@ -24,7 +24,9 @@ def download_video(url, tmpdir):
             filepath = info['requested_downloads'][0]['filepath']
         else:
             filepath = ydl.prepare_filename(info)
-    return filepath
+    description = info.get('description', '')
+    uploader = info.get('uploader', info.get('channel', info.get('author', '')))
+    return filepath, description, uploader
 
 
 def transcribe_video(video_path):
@@ -33,8 +35,8 @@ def transcribe_video(video_path):
     return result["text"]
 
 
-def summarize_text(transcript):
-    system_prompt = os.environ.get("SYSTEM_PROMPT", "Summarize the following video transcript:")
+def summarize_text(transcript, description, uploader):
+    system_prompt = os.environ.get("SYSTEM_PROMPT", "Summarize the following video transcript, description, and account name:")
     api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
         raise RuntimeError("OPENROUTER_API_KEY environment variable not set")
@@ -43,11 +45,12 @@ def summarize_text(transcript):
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
+    user_content = f"Account name: {uploader}\nDescription: {description}\nTranscript:\n{transcript}"
     data = {
         "model": "openrouter/horizon-alpha",
         "messages": [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"Text:\n{transcript}"}
+            {"role": "user", "content": user_content}
         ]
     }
     resp = requests.post(url, headers=headers, json=data)
@@ -109,11 +112,13 @@ def main():
 
     with tempfile.TemporaryDirectory() as tmpdir:
         print(f"Working in temp dir: {tmpdir}")
-        video_path = download_video(args.url, tmpdir)
+        video_path, description, uploader = download_video(args.url, tmpdir)
         print(f"Downloaded video to: {video_path}")
+        print(f"Uploader: {uploader}")
+        print(f"Description: {description}")
         transcript = transcribe_video(video_path)
         print(f"Transcript:\n{transcript}")
-        summary = summarize_text(transcript)
+        summary = summarize_text(transcript, description, uploader)
         print(f"Summary:\n{summary}")
         final_video_path = maybe_reencode(video_path, tmpdir)
         print(f"Final video for posting: {final_video_path}")
