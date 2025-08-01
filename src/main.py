@@ -23,6 +23,9 @@ def download_video(url, tmpdir):
     videos = []
     audios = []
     for f in formats:
+        # Only consider formats with a valid url (directly downloadable)
+        if not f.get('url'):
+            continue
         size = f.get('filesize') or f.get('filesize_approx')
         if not size:
             continue
@@ -44,24 +47,52 @@ def download_video(url, tmpdir):
             candidates.append((total, f"{v['format_id']}+{a['format_id']}"))
     # Unter 100MB suchen
     under_100mb = [c for c in candidates if c[0] < 100*1024*1024]
-    if under_100mb:
-        selected = max(under_100mb, key=lambda x: x[0])
-    else:
-        selected = min(candidates, key=lambda x: x[0])
-    format_id = selected[1]
-    # Step 3: Download the selected format or pair
-    ydl_opts = {
-        'outtmpl': outtmpl,
-        'format': format_id,
-        'merge_output_format': 'mp4',
-        'quiet': True,
-    }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=True)
-        if 'requested_downloads' in info:
-            filepath = info['requested_downloads'][0]['filepath']
+    if candidates:
+        if under_100mb:
+            selected = max(under_100mb, key=lambda x: x[0])
         else:
-            filepath = ydl.prepare_filename(info)
+            selected = min(candidates, key=lambda x: x[0])
+        format_id = selected[1]
+        # Step 3: Download the selected format or pair
+        ydl_opts = {
+            'outtmpl': outtmpl,
+            'format': format_id,
+            'merge_output_format': 'mp4',
+            'quiet': True,
+        }
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                if 'requested_downloads' in info:
+                    filepath = info['requested_downloads'][0]['filepath']
+                else:
+                    filepath = ydl.prepare_filename(info)
+        except Exception as e:
+            print(f"Error downloading selected format: {e}\nFalling back to 'best' format.")
+            ydl_opts['format'] = 'best'
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                if 'requested_downloads' in info:
+                    filepath = info['requested_downloads'][0]['filepath']
+                else:
+                    filepath = ydl.prepare_filename(info)
+    else:
+        print("No directly downloadable formats found! Available formats:")
+        for f in formats:
+            print(f"format_id={f.get('format_id')}, vcodec={f.get('vcodec')}, acodec={f.get('acodec')}, filesize={f.get('filesize')}, url={'yes' if f.get('url') else 'no'}")
+        print("Falling back to 'best' format.")
+        ydl_opts = {
+            'outtmpl': outtmpl,
+            'format': 'best',
+            'merge_output_format': 'mp4',
+            'quiet': True,
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            if 'requested_downloads' in info:
+                filepath = info['requested_downloads'][0]['filepath']
+            else:
+                filepath = ydl.prepare_filename(info)
     description = info.get('description', '')
     uploader = info.get('uploader', info.get('channel', info.get('author', '')))
     return filepath, description, uploader
