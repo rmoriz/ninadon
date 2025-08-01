@@ -15,33 +15,39 @@ def download_video(url, tmpdir):
     ydl_opts_info = {'quiet': True}
     with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:
         info = ydl.extract_info(url, download=False)
-    # Step 2: Find best format <100MB, else smallest
+    # Step 2: Find best muxed or video+audio pair <100MB, else smallest
     formats = info.get('formats', [])
-    best_format = None
-    best_size = None
-    under_100mb = []
+    muxed = []
+    videos = []
+    audios = []
     for f in formats:
-        # Only consider formats with both video and audio, and with a known size
-        if not f.get('vcodec') or f.get('vcodec') == 'none':
-            continue
-        if not f.get('acodec') or f.get('acodec') == 'none':
-            continue
         size = f.get('filesize') or f.get('filesize_approx')
         if not size:
             continue
-        if size < 100 * 1024 * 1024:
-            under_100mb.append((size, f))
-        if best_size is None or size < best_size:
-            best_size = size
-            best_format = f
+        if f.get('vcodec') != 'none' and f.get('acodec') != 'none':
+            muxed.append((size, f))
+        elif f.get('vcodec') != 'none':
+            videos.append((size, f))
+        elif f.get('acodec') != 'none':
+            audios.append((size, f))
+    # Alle muxed-Formate prüfen
+    candidates = []
+    for size, f in muxed:
+        candidates.append((size, f['format_id']))
+    # Alle Video+Audio-Kombis prüfen
+    for vsize, v in videos:
+        for asize, a in audios:
+            total = vsize + asize
+            # yt-dlp Format-String: "video_id+audio_id"
+            candidates.append((total, f"{v['format_id']}+{a['format_id']}"))
+    # Unter 100MB suchen
+    under_100mb = [c for c in candidates if c[0] < 100*1024*1024]
     if under_100mb:
-        # Pick the largest under 100MB (best quality under limit)
-        selected_format = max(under_100mb, key=lambda x: x[0])[1]
+        selected = max(under_100mb, key=lambda x: x[0])
     else:
-        # Pick the smallest available
-        selected_format = best_format
-    format_id = selected_format['format_id']
-    # Step 3: Download the selected format
+        selected = min(candidates, key=lambda x: x[0])
+    format_id = selected[1]
+    # Step 3: Download the selected format or pair
     ydl_opts = {
         'outtmpl': outtmpl,
         'format': format_id,
