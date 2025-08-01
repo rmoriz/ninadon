@@ -3,18 +3,15 @@ FROM python:3.11-slim
 # Install system dependencies
 RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
 
-# Set workdir
+# Set workdir and home
 WORKDIR /app
-
-# Set HuggingFace/Whisper cache directory
+ENV HOME=/app
 ENV HF_HOME=/app/.cache
 ENV TRANSFORMERS_CACHE=/app/.cache
 
-# Create a non-root user and group with home directory
-RUN groupadd -r appuser && useradd -m -r -g appuser appuser
-RUN chown -R appuser:appuser /home/appuser
-RUN mkdir -p /app/.cache && chown -R appuser:appuser /app
-ENV HOME=/home/appuser
+# Create a non-root user and group with /app as home
+RUN groupadd -r appuser && useradd -m -d /app -r -g appuser appuser
+RUN chown -R appuser:appuser /app
 
 # Switch to non-root user for all remaining steps
 USER appuser
