@@ -83,7 +83,7 @@ def wait_for_media_processing(mastodon, media_id, timeout=60, poll_interval=2):
         time.sleep(poll_interval)
     raise RuntimeError("Media processing timed out")
 
-def post_to_mastodon(summary, video_path):
+def post_to_mastodon(summary, video_path, source_url):
     auth_token = os.environ.get("AUTH_TOKEN")
     mastodon_url = os.environ.get("MASTODON_URL", "https://mastodon.social")
     if not auth_token:
@@ -94,7 +94,8 @@ def post_to_mastodon(summary, video_path):
     print(f"Waiting for Mastodon to process video...")
     media = wait_for_media_processing(mastodon, media["id"])
     print(f"Posting status to Mastodon...")
-    status = mastodon.status_post(summary, media_ids=[media["id"]])
+    status_text = f"{summary}\n\nSource: {source_url}"
+    status = mastodon.status_post(status_text, media_ids=[media["id"]])
     print(f"Posted to Mastodon: {status['url']}")
     return status['url']
 
@@ -114,7 +115,7 @@ def main():
         print(f"Summary:\n{summary}")
         final_video_path = maybe_reencode(video_path, tmpdir)
         print(f"Final video for posting: {final_video_path}")
-        mastodon_url = post_to_mastodon(summary, final_video_path)
+        mastodon_url = post_to_mastodon(summary, final_video_path, args.url)
         print(f"Mastodon post URL: {mastodon_url}")
         # Temp files are cleaned up automatically
 
