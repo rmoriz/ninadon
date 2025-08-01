@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="docs/logo.png" alt="ninadon logo" width="200" />
+  <img src="docs/logo.png" alt="ninadon logo" width="288" />
 </div>
 
 # ninadon
