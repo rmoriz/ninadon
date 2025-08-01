@@ -197,17 +197,21 @@ def main():
         print(f"Uploader: {uploader}")
         print(f"Description: {description}")
         print("Starting transcription...")
+        sys.stdout.flush()
         transcript = transcribe_video(video_path)
         print(f"Transcript:\n{transcript}")
         print("Starting summarization...")
+        sys.stdout.flush()
         summary = summarize_text(transcript, description, uploader)
         print(f"Summary:\n{summary}")
         enable_transcoding = os.environ.get("ENABLE_TRANSCODING", "").lower() in ("1", "true", "yes")
         if enable_transcoding:
             print("Transcoding is enabled. Checking if transcoding is needed...")
+            sys.stdout.flush()
             final_video_path = maybe_reencode(video_path, tmpdir)
         else:
             print("Transcoding is disabled. Using original video.")
+            sys.stdout.flush()
             final_video_path = video_path
         print(f"Final video for posting: {final_video_path}")
         print("Starting Mastodon post...")
