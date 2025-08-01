@@ -72,7 +72,9 @@ def maybe_reencode(video_path, tmpdir):
 
 import time
 
-def wait_for_media_processing(mastodon, media_id, timeout=60, poll_interval=2):
+def wait_for_media_processing(mastodon, media_id, timeout=None, poll_interval=2):
+    if timeout is None:
+        timeout = int(os.environ.get("MASTODON_MEDIA_TIMEOUT", "180"))
     """Poll Mastodon media status until processed or timeout."""
     start = time.time()
     while time.time() - start < timeout:
