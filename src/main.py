@@ -159,6 +159,9 @@ def wait_for_media_processing(mastodon, media_id, timeout=None, poll_interval=2)
     raise RuntimeError("Media processing timed out")
 
 def post_to_mastodon(summary, video_path, source_url):
+    size_bytes = os.path.getsize(video_path)
+    size_mb = size_bytes / (1024 * 1024)
+    print(f"Video file size before posting: {size_mb:.2f} MB ({size_bytes} bytes)")
     auth_token = os.environ.get("AUTH_TOKEN")
     mastodon_url = os.environ.get("MASTODON_URL", "https://mastodon.social")
     if not auth_token:
@@ -170,6 +173,8 @@ def post_to_mastodon(summary, video_path, source_url):
     media = wait_for_media_processing(mastodon, media["id"])
     print(f"Posting status to Mastodon...")
     status_text = f"{summary}\n\nSource: {source_url}"
+    print(f"Mastodon post text length: {len(status_text)} characters")
+    print(f"Mastodon post text:\n{status_text}")
     status = mastodon.status_post(status_text, media_ids=[media["id"]])
     print(f"Posted to Mastodon: {status['url']}")
     return status['url']
