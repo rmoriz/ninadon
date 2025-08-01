@@ -6,6 +6,7 @@ import yt_dlp
 import whisper
 import requests
 import subprocess
+from mastodon import Mastodon
 
 
 def download_video(url, tmpdir):
@@ -69,6 +70,20 @@ def maybe_reencode(video_path, tmpdir):
         return video_path
 
 
+def post_to_mastodon(summary, video_path):
+    auth_token = os.environ.get("AUTH_TOKEN")
+    mastodon_url = os.environ.get("MASTODON_URL", "https://mastodon.social")
+    if not auth_token:
+        raise RuntimeError("AUTH_TOKEN environment variable not set")
+    mastodon = Mastodon(access_token=auth_token, api_base_url=mastodon_url)
+    print(f"Uploading video to Mastodon...")
+    media = mastodon.media_post(video_path, mime_type="video/mp4")
+    print(f"Posting status to Mastodon...")
+    status = mastodon.status_post(summary, media_ids=[media["id"]])
+    print(f"Posted to Mastodon: {status['url']}")
+    return status['url']
+
+
 def main():
     parser = argparse.ArgumentParser(description="Download, transcribe, summarize, and post video.")
     parser.add_argument('url', help='Video URL (YouTube, Instagram, TikTok)')
@@ -84,7 +99,9 @@ def main():
         print(f"Summary:\n{summary}")
         final_video_path = maybe_reencode(video_path, tmpdir)
         print(f"Final video for posting: {final_video_path}")
-        # TODO: Post, cleanup
+        mastodon_url = post_to_mastodon(summary, final_video_path)
+        print(f"Mastodon post URL: {mastodon_url}")
+        # Temp files are cleaned up automatically
 
 if __name__ == "__main__":
     main()
