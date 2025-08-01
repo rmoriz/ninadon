@@ -2,6 +2,16 @@
 
 Automate the workflow of downloading a video (YouTube, Instagram, TikTok), transcribing it with OpenAI Whisper, summarizing with OpenRouter AI, optionally re-encoding to H.265, and posting the summary and video to Mastodon.
 
+---
+
+**Official Docker image for amd64 and arm64 is available at:**
+
+```
+ ghcr.io/rmoriz/ninadon
+```
+
+---
+
 ## Features
 
 - Download videos from YouTube, Instagram, TikTok (via yt-dlp)
@@ -16,7 +26,13 @@ Automate the workflow of downloading a video (YouTube, Instagram, TikTok), trans
 
 ### 1. Docker (Recommended)
 
-Build the Docker image:
+You can use the prebuilt multi-arch image (amd64, arm64) from GitHub Container Registry:
+
+```sh
+docker pull ghcr.io/rmoriz/ninadon:latest
+```
+
+Or build the Docker image yourself:
 
 ```sh
 docker build -t ninadon .
@@ -48,6 +64,18 @@ python src/main.py "https://www.youtube.com/watch?v=example"
 ```
 
 ### Docker
+
+Using the prebuilt image:
+
+```sh
+docker run --rm \
+  -e OPENROUTER_API_KEY=your_openrouter_key \
+  -e AUTH_TOKEN=your_mastodon_token \
+  -e MASTODON_URL=https://mastodon.social \
+  ghcr.io/rmoriz/ninadon:latest "https://www.youtube.com/watch?v=example"
+```
+
+Or with your own build:
 
 ```sh
 docker run --rm \
