@@ -70,6 +70,19 @@ def maybe_reencode(video_path, tmpdir):
         return video_path
 
 
+import time
+
+def wait_for_media_processing(mastodon, media_id, timeout=60, poll_interval=2):
+    """Poll Mastodon media status until processed or timeout."""
+    start = time.time()
+    while time.time() - start < timeout:
+        media = mastodon.media(media_id)
+        # Mastodon returns 'url' when processed, and 'processing' is False
+        if media.get("url") and not media.get("processing", False):
+            return media
+        time.sleep(poll_interval)
+    raise RuntimeError("Media processing timed out")
+
 def post_to_mastodon(summary, video_path):
     auth_token = os.environ.get("AUTH_TOKEN")
     mastodon_url = os.environ.get("MASTODON_URL", "https://mastodon.social")
@@ -78,6 +91,8 @@ def post_to_mastodon(summary, video_path):
     mastodon = Mastodon(access_token=auth_token, api_base_url=mastodon_url)
     print(f"Uploading video to Mastodon...")
     media = mastodon.media_post(video_path, mime_type="video/mp4")
+    print(f"Waiting for Mastodon to process video...")
+    media = wait_for_media_processing(mastodon, media["id"])
     print(f"Posting status to Mastodon...")
     status = mastodon.status_post(summary, media_ids=[media["id"]])
     print(f"Posted to Mastodon: {status['url']}")
