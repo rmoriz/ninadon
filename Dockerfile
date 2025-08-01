@@ -23,8 +23,10 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 COPY src/ ./src/
 
-# Create a non-root user and group
-RUN groupadd -r appuser && useradd -r -g appuser appuser
+# Create a non-root user and group with home directory
+RUN groupadd -r appuser && useradd -m -r -g appuser appuser
+RUN chown -R appuser:appuser /home/appuser
+ENV HOME=/home/appuser
 
 # Set permissions for /app and cache directories
 RUN mkdir -p /app/.cache && chown -R appuser:appuser /app
