@@ -19,6 +19,7 @@
 - To run a single test function:
   - `PYTHONPATH=. pytest tests/test_main.py::test_func`
 - **All tests must pass before committing and pushing any changes.**
+- **Running the tests before every git commit or push is MANDATORY. This is a MUST, not a recommendation.**
 
 - **Install dependencies:** `pip install -r requirements.txt`
 - **Build Docker image:** `docker build .`
