@@ -187,8 +187,11 @@ def main():
     args = parser.parse_args()
 
     with tempfile.TemporaryDirectory() as tmpdir:
+        import sys
         print(f"Working in temp dir: {tmpdir}")
+        sys.stdout.flush()
         print("Starting download...")
+        sys.stdout.flush()
         video_path, description, uploader = download_video(args.url, tmpdir)
         print(f"Downloaded video to: {video_path}")
         print(f"Uploader: {uploader}")
