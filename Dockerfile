@@ -10,29 +10,30 @@ WORKDIR /app
 ENV HF_HOME=/app/.cache
 ENV TRANSFORMERS_CACHE=/app/.cache
 
-# --- Install Whisper and pre-download model for optimal caching ---
-# Copy minimal requirements for Whisper only
+# Create a non-root user and group with home directory
+RUN groupadd -r appuser && useradd -m -r -g appuser appuser
+RUN chown -R appuser:appuser /home/appuser
+RUN mkdir -p /app/.cache && chown -R appuser:appuser /app
+ENV HOME=/home/appuser
+
+# Switch to non-root user for pip install and model download
+USER appuser
+
+# Install Whisper and pre-download model as appuser
 COPY requirements.txt ./requirements.whisper.txt
 RUN grep openai-whisper requirements.whisper.txt > whisper-only.txt
 RUN pip install --no-cache-dir -r whisper-only.txt
-# Pre-download Whisper base model
 RUN python -c "import whisper; whisper.load_model('base')"
 
-# --- Install all other dependencies and app code ---
+# Switch back to root for remaining steps
+USER root
+
+# Install all other dependencies and app code as root
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 COPY src/ ./src/
 
-# Create a non-root user and group with home directory
-RUN groupadd -r appuser && useradd -m -r -g appuser appuser
-RUN chown -R appuser:appuser /home/appuser
-ENV HOME=/home/appuser
-
-# Set permissions for /app and cache directories
-RUN mkdir -p /app/.cache && chown -R appuser:appuser /app
-
-# Switch to non-root user
+# Switch to appuser for runtime
 USER appuser
 
-# Entrypoint
 ENTRYPOINT ["python", "src/main.py"]
