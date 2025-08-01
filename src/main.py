@@ -67,29 +67,9 @@ def download_video(url, tmpdir):
     return filepath, description, uploader
 
 
-import threading
-import sys
-import time
-
-def _spinner(msg, stop_event):
-    spinner = ['|', '/', '-', '\\']
-    idx = 0
-    while not stop_event.is_set():
-        sys.stdout.write(f"\r{msg} {spinner[idx % len(spinner)]}")
-        sys.stdout.flush()
-        idx += 1
-        time.sleep(0.2)
-    sys.stdout.write("\r" + " " * (len(msg) + 2) + "\r")
-    sys.stdout.flush()
-
 def transcribe_video(video_path):
     model = whisper.load_model("base")
-    stop_event = threading.Event()
-    spinner_thread = threading.Thread(target=_spinner, args=("Transcribing...", stop_event))
-    spinner_thread.start()
     result = model.transcribe(video_path)
-    stop_event.set()
-    spinner_thread.join()
     return result["text"]
 
 
