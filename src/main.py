@@ -148,7 +148,7 @@ import time
 
 def wait_for_media_processing(mastodon, media_id, timeout=None, poll_interval=2):
     if timeout is None:
-        timeout = int(os.environ.get("MASTODON_MEDIA_TIMEOUT", "180"))
+        timeout = int(os.environ.get("MASTODON_MEDIA_TIMEOUT", "600"))
     """Poll Mastodon media status until processed or timeout."""
     start = time.time()
     while time.time() - start < timeout:
