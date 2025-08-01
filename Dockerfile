@@ -15,6 +15,7 @@ RUN chown -R appuser:appuser /app
 
 # Switch to non-root user for all remaining steps
 USER appuser
+ENV PATH="/app/.local/bin:${PATH}"
 
 # Install Whisper and pre-download model as appuser
 COPY requirements.txt ./requirements.whisper.txt
