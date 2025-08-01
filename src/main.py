@@ -64,9 +64,10 @@ def maybe_reencode(video_path, tmpdir):
     if size_mb > 25:
         reencoded_path = os.path.join(tmpdir, "video_h265.mp4")
         print(f"Re-encoding {video_path} to H.265 (size: {size_mb:.2f}MB)...")
+        transcode_timeout = int(os.environ.get("TRANSCODE_TIMEOUT", "600"))
         subprocess.run([
             "ffmpeg", "-i", video_path, "-c:v", "libx265", "-crf", "35", "-c:a", "copy", reencoded_path
-        ], check=True)
+        ], check=True, timeout=transcode_timeout)
         print(f"Re-encoded video saved to: {reencoded_path}")
         return reencoded_path
     else:
