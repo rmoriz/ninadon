@@ -1,0 +1,30 @@
+name: Cleanup old untagged Docker images
+
+on:
+  schedule:
+    - cron: '0 3 * * 0' # Every Sunday at 03:00 UTC
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up GitHub CLI
+        uses: cli/cli-action@v2
+
+      - name: Delete old untagged images, keep 3 most recent
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ninadon
+        run: |
+          set -e
+          # List all untagged image versions (manifests) for this repo
+          images=$(gh api -H "Accept: application/vnd.github+json" \
+            "/orgs/$OWNER/packages/container/$REPO/versions" | jq -r '.[] | select(.metadata.container.tags | length == 0) | "\(.id) \(.created_at)"' | sort -k2 -r)
+          # Keep the 3 most recent, delete the rest
+          ids_to_delete=$(echo "$images" | tail -n +4 | awk '{print $1}')
+          for id in $ids_to_delete; do
+            echo "Deleting untagged image version $id"
+            gh api -X DELETE "/orgs/$OWNER/packages/container/$REPO/versions/$id"
+          done
