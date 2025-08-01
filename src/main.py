@@ -4,6 +4,7 @@ import tempfile
 import os
 import yt_dlp
 import whisper
+import requests
 
 
 def download_video(url, tmpdir):
@@ -30,6 +31,29 @@ def transcribe_video(video_path):
     return result["text"]
 
 
+def summarize_text(transcript):
+    system_prompt = os.environ.get("SYSTEM_PROMPT", "Summarize the following video transcript:")
+    api_key = os.environ.get("OPENROUTER_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENROUTER_API_KEY environment variable not set")
+    url = "https://openrouter.ai/api/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    data = {
+        "model": "gpt-3.5-turbo",
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": f"Text:\n{transcript}"}
+        ]
+    }
+    resp = requests.post(url, headers=headers, json=data)
+    resp.raise_for_status()
+    summary = resp.json()["choices"][0]["message"]["content"]
+    return summary
+
+
 def main():
     parser = argparse.ArgumentParser(description="Download, transcribe, summarize, and post video.")
     parser.add_argument('url', help='Video URL (YouTube, Instagram, TikTok)')
@@ -41,7 +65,9 @@ def main():
         print(f"Downloaded video to: {video_path}")
         transcript = transcribe_video(video_path)
         print(f"Transcript:\n{transcript}")
-        # TODO: Summarize, post, cleanup
+        summary = summarize_text(transcript)
+        print(f"Summary:\n{summary}")
+        # TODO: Post, cleanup
 
 if __name__ == "__main__":
     main()
