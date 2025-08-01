@@ -162,8 +162,13 @@ def main():
         print("Starting summarization...")
         summary = summarize_text(transcript, description, uploader)
         print(f"Summary:\n{summary}")
-        print("Checking if transcoding is needed...")
-        final_video_path = maybe_reencode(video_path, tmpdir)
+        enable_transcoding = os.environ.get("ENABLE_TRANSCODING", "").lower() in ("1", "true", "yes")
+        if enable_transcoding:
+            print("Transcoding is enabled. Checking if transcoding is needed...")
+            final_video_path = maybe_reencode(video_path, tmpdir)
+        else:
+            print("Transcoding is disabled. Using original video.")
+            final_video_path = video_path
         print(f"Final video for posting: {final_video_path}")
         print("Starting Mastodon post...")
         mastodon_url = post_to_mastodon(summary, final_video_path, args.url)
