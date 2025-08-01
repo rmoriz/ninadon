@@ -1,6 +1,25 @@
 # AGENTS.md
 
+## Virtual Environment Setup
+- **Create venv:** `python3 -m venv .venv`
+- **Activate venv (Unix/macOS):** `source .venv/bin/activate`
+- **Activate venv (Windows):** `.venv\Scripts\activate`
+- **Install dependencies:** `pip install -r requirements.txt`
+
 ## Build, Lint, and Test Commands
+
+## Running Tests
+- **You must activate the .venv before running tests.**
+- On Unix/macOS:
+  - `source .venv/bin/activate`
+- On Windows:
+  - `.venv\Scripts\activate`
+- Then run tests with:
+  - `PYTHONPATH=. pytest tests/test_main.py`
+- To run a single test function:
+  - `PYTHONPATH=. pytest tests/test_main.py::test_func`
+- **All tests must pass before committing and pushing any changes.**
+
 - **Install dependencies:** `pip install -r requirements.txt`
 - **Build Docker image:** `docker build .`
 - **Run app:** `python src/main.py <video_url>`
