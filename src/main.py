@@ -44,7 +44,7 @@ def summarize_text(transcript):
         "Content-Type": "application/json"
     }
     data = {
-        "model": "gpt-3.5-turbo",
+        "model": "openrouter/horizon-alpha",
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": f"Text:\n{transcript}"}
