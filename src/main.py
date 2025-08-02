@@ -167,12 +167,15 @@ def post_to_mastodon(summary, video_path, source_url):
     size_bytes = os.path.getsize(video_path)
     size_mb = size_bytes / (1024 * 1024)
     print(f"Video file size before posting: {size_mb:.2f} MB ({size_bytes} bytes)")
+    import sys
+    sys.stdout.flush()
     auth_token = os.environ.get("AUTH_TOKEN")
     mastodon_url = os.environ.get("MASTODON_URL", "https://mastodon.social")
     if not auth_token:
         raise RuntimeError("AUTH_TOKEN environment variable not set")
     mastodon = Mastodon(access_token=auth_token, api_base_url=mastodon_url)
     print(f"Uploading video to Mastodon...")
+    sys.stdout.flush()
     class ProgressFile:
         def __init__(self, filename, mode='rb', chunk_size=8192):
             self.file = open(filename, mode)
@@ -202,13 +205,21 @@ def post_to_mastodon(summary, video_path, source_url):
     finally:
         pf.close()
     print(f"Waiting for Mastodon to process video...")
+    import sys
+    mastodon_timeout = int(os.environ.get("MASTODON_MEDIA_TIMEOUT", "600"))
+    print(f"Mastodon media processing timeout: {mastodon_timeout} seconds")
+    sys.stdout.flush()
     media = wait_for_media_processing(mastodon, media["id"])
     print(f"Posting status to Mastodon...")
+    sys.stdout.flush()
     status_text = f"{summary}\n\nSource: {source_url}"
     print(f"Mastodon post text length: {len(status_text)} characters")
+    sys.stdout.flush()
     print(f"Mastodon post text:\n{status_text}")
+    sys.stdout.flush()
     status = mastodon.status_post(status_text, media_ids=[media["id"]])
     print(f"Posted to Mastodon: {status['url']}")
+    sys.stdout.flush()
     return status['url']
 
 
