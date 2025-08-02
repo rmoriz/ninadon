@@ -25,6 +25,10 @@ Automate the workflow of downloading a video (YouTube, Instagram, TikTok), trans
 - Post summary and video to Mastodon
 - Cleans up temporary files automatically
 - Dockerized for easy deployment
+- **Modular, maintainable codebase:**
+  - Repeated logic is extracted into helper functions for clarity and reuse
+  - Logging is standardized with `print_flush` for consistent output
+  - Environment variable access is robust and centralized
 
 ## Installation
 
@@ -62,6 +66,8 @@ Set these variables before running:
 - `OPENROUTER_MODEL` — (optional) Model name for OpenRouter summarization. Defaults to `openrouter/horizon-alpha`.  
   Example: `OPENROUTER_MODEL=tngtech/deepseek-r1t2-chimera:free`
 - `ENABLE_TRANSCODING` — (optional) If set to `1`, `true`, or `yes` (case-insensitive), enables video transcoding to H.265 for files >25MB. Default: transcoding is disabled and the original video is used.
+- `TRANSCODE_TIMEOUT` — (optional) Timeout in seconds for ffmpeg transcoding. Default: `600`.
+- `MASTODON_MEDIA_TIMEOUT` — (optional) Timeout in seconds to wait for Mastodon to process uploaded media. Default: `600`.
 
 ## Usage
 
@@ -119,6 +125,13 @@ Posted to Mastodon: https://mastodon.social/@youruser/123456
 - **Whisper model download:** The Docker image pre-downloads the Whisper "base" model for fast startup. If you use a different model, update the Dockerfile accordingly.
 - **OpenRouter API issues:** Ensure your API key is valid and you have sufficient quota.
 
+## Code Quality
+
+- The codebase is modular and maintainable, with repeated logic extracted into helper functions.
+- Logging is standardized using `print_flush` for consistent and immediate output.
+- Environment variable access is robust and centralized via a single helper.
+- All code changes are tested and must pass before commit.
+
 ## License
 
 MIT
@@ -128,3 +141,9 @@ MIT
 ## Contributing
 
 PRs and issues welcome!
+
+- Please ensure all tests pass before submitting a PR.
+- Follow the code style and modularity guidelines (see `AGENTS.md`).
+- Refactor or extract helpers if you find repeated logic.
+- Use `print_flush` for logging.
+
