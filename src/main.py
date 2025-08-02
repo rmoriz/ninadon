@@ -113,7 +113,9 @@ def summarize_text(transcript, description, uploader):
     url = "https://openrouter.ai/api/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "X-Title": "Ninadon",
+        "HTTP-Referer": "https://github.com/rmoriz/ninadon"
     }
     user_content = f"Account name: {uploader}\nDescription: {description}\nTranscript:\n{transcript}"
     data = {
@@ -157,7 +159,9 @@ def wait_for_media_processing(mastodon, media_id, timeout=None, poll_interval=2)
         if media.get("url") and not media.get("processing", False):
             return media
         time.sleep(poll_interval)
-    raise RuntimeError("Media processing timed out")
+    print(f"WARNING: Media processing timed out for media_id={media_id}.\n" \
+          f"Consider increasing the MASTODON_MEDIA_TIMEOUT environment variable or checking your Mastodon instance's limits.")
+    raise RuntimeError(f"Media processing timed out for media_id={media_id}")
 
 def post_to_mastodon(summary, video_path, source_url):
     size_bytes = os.path.getsize(video_path)
