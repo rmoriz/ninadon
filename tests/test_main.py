@@ -83,11 +83,11 @@ def test_post_to_mastodon(monkeypatch, fake_video_path):
 
 def test_main_flow(monkeypatch, tmp_path):
     # Patch all major functions to simulate main() flow
-    monkeypatch.setattr(main, "download_video", lambda url, tmpdir: (str(tmp_path / "video.mp4"), "desc", "uploader"))
+    monkeypatch.setattr(main, "download_video", lambda url, tmpdir: (str(tmp_path / "video.mp4"), "desc", "uploader", "video/mp4"))
     monkeypatch.setattr(main, "transcribe_video", lambda path: "transcript")
     monkeypatch.setattr(main, "summarize_text", lambda t, d, u: "summary")
     monkeypatch.setattr(main, "maybe_reencode", lambda path, tmpdir: path)
-    monkeypatch.setattr(main, "post_to_mastodon", lambda s, v, u: "http://mastodon/post")
+    monkeypatch.setattr(main, "post_to_mastodon", lambda s, v, u, m: "http://mastodon/post")
     # Simulate CLI args
     sys_argv = sys.argv
     sys.argv = ["main.py", "http://test"]

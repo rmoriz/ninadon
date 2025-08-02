@@ -96,7 +96,14 @@ def download_video(url, tmpdir):
                 filepath = ydl.prepare_filename(info)
     description = info.get('description', '')
     uploader = info.get('uploader', info.get('channel', info.get('author', '')))
-    return filepath, description, uploader
+    # Try to get mime type from yt-dlp info or format
+    mime_type = None
+    if 'requested_downloads' in info and info['requested_downloads']:
+        mime_type = info['requested_downloads'][0].get('mime_type')
+    if not mime_type:
+        # Fallback: try top-level info
+        mime_type = info.get('mime_type')
+    return filepath, description, uploader, mime_type
 
 
 def transcribe_video(video_path):
@@ -163,7 +170,9 @@ def wait_for_media_processing(mastodon, media_id, timeout=None, poll_interval=2)
           f"Consider increasing the MASTODON_MEDIA_TIMEOUT environment variable or checking your Mastodon instance's limits.")
     raise RuntimeError(f"Media processing timed out for media_id={media_id}")
 
-def post_to_mastodon(summary, video_path, source_url):
+import mimetypes
+
+def post_to_mastodon(summary, video_path, source_url, mime_type=None):
     size_bytes = os.path.getsize(video_path)
     size_mb = size_bytes / (1024 * 1024)
     print(f"Video file size before posting: {size_mb:.2f} MB ({size_bytes} bytes)")
@@ -199,11 +208,17 @@ def post_to_mastodon(summary, video_path, source_url):
         def close(self):
             self.file.close()
             print()  # Newline after progress
-    pf = ProgressFile(video_path)
-    try:
-        media = mastodon.media_post(pf, mime_type="video/mp4")
-    finally:
-        pf.close()
+    # pf = ProgressFile(video_path)
+    # try:
+    #     media = mastodon.media_post(pf, mime_type="video/mp4")
+    # finally:
+    #     pf.close()
+    # Determine mime type if not provided
+    if not mime_type:
+        mime_type, _ = mimetypes.guess_type(video_path)
+        if not mime_type:
+            mime_type = "application/octet-stream"
+    media = mastodon.media_post(video_path, mime_type=mime_type)
     print(f"Waiting for Mastodon to process video...")
     import sys
     mastodon_timeout = int(os.environ.get("MASTODON_MEDIA_TIMEOUT", "600"))
@@ -234,7 +249,7 @@ def main():
         sys.stdout.flush()
         print("Starting download...")
         sys.stdout.flush()
-        video_path, description, uploader = download_video(args.url, tmpdir)
+        video_path, description, uploader, mime_type = download_video(args.url, tmpdir)
         print(f"Downloaded video to: {video_path}")
         print(f"Uploader: {uploader}")
         print(f"Description: {description}")
@@ -259,7 +274,7 @@ def main():
         sys.stdout.flush()
         print("Starting Mastodon post...")
         sys.stdout.flush()
-        mastodon_url = post_to_mastodon(summary, final_video_path, args.url)
+        mastodon_url = post_to_mastodon(summary, final_video_path, args.url, mime_type)
         print(f"Mastodon post URL: {mastodon_url}")
         # Temp files are cleaned up automatically
 
