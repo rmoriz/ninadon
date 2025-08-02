@@ -173,7 +173,34 @@ def post_to_mastodon(summary, video_path, source_url):
         raise RuntimeError("AUTH_TOKEN environment variable not set")
     mastodon = Mastodon(access_token=auth_token, api_base_url=mastodon_url)
     print(f"Uploading video to Mastodon...")
-    media = mastodon.media_post(video_path, mime_type="video/mp4")
+    class ProgressFile:
+        def __init__(self, filename, mode='rb', chunk_size=8192):
+            self.file = open(filename, mode)
+            self.total = self._get_size()
+            self.read_bytes = 0
+            self.chunk_size = chunk_size
+        def _get_size(self):
+            self.file.seek(0, 2)
+            size = self.file.tell()
+            self.file.seek(0)
+            return size
+        def read(self, size=-1):
+            chunk = self.file.read(size if size != -1 else self.chunk_size)
+            if chunk:
+                self.read_bytes += len(chunk)
+                percent = (self.read_bytes / self.total) * 100
+                print(f"\rUploading: {self.read_bytes}/{self.total} bytes ({percent:.1f}%)", end='', flush=True)
+            return chunk
+        def __getattr__(self, attr):
+            return getattr(self.file, attr)
+        def close(self):
+            self.file.close()
+            print()  # Newline after progress
+    pf = ProgressFile(video_path)
+    try:
+        media = mastodon.media_post(pf, mime_type="video/mp4")
+    finally:
+        pf.close()
     print(f"Waiting for Mastodon to process video...")
     media = wait_for_media_processing(mastodon, media["id"])
     print(f"Posting status to Mastodon...")
