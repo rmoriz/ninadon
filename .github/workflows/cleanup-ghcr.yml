@@ -1,30 +1,245 @@
-name: Cleanup old untagged Docker images
+name: Cleanup Old Docker Images
 
 on:
+  # Run weekly on Sundays at 2 AM UTC
   schedule:
-    - cron: '0 3 * * 0' # Every Sunday at 03:00 UTC
+    - cron: '0 2 * * 0'
+  # Allow manual trigger
   workflow_dispatch:
+    inputs:
+      keep_count:
+        description: 'Number of untagged images to keep'
+        required: false
+        default: '5'
+        type: string
 
 jobs:
   cleanup:
     runs-on: ubuntu-latest
-    steps:
-      - name: Set up GitHub CLI
-        uses: cli/gh-action@v2
+    permissions:
+      packages: write
+      contents: read
+      actions: read
 
-      - name: Delete old untagged images, keep 3 most recent
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OWNER: ${{ github.repository_owner }}
-          REPO: ninadon
+    steps:
+      - name: Clean up old untagged Docker images
         run: |
-          set -e
-          # List all untagged image versions (manifests) for this repo
-          images=$(gh api -H "Accept: application/vnd.github+json" \
-            "/orgs/$OWNER/packages/container/$REPO/versions" | jq -r '.[] | select(.metadata.container.tags | length == 0) | "\(.id) \(.created_at)"' | sort -k2 -r)
-          # Keep the 3 most recent, delete the rest
-          ids_to_delete=$(echo "$images" | tail -n +4 | awk '{print $1}')
-          for id in $ids_to_delete; do
-            echo "Deleting untagged image version $id"
-            gh api -X DELETE "/orgs/$OWNER/packages/container/$REPO/versions/$id"
+          # Get the package name (repository name in lowercase)
+          PACKAGE_NAME=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          KEEP_COUNT=${{ github.event.inputs.keep_count || '5' }}
+          
+          echo "🧹 Starting cleanup for package: $PACKAGE_NAME"
+          echo "📦 Keeping last $KEEP_COUNT untagged images"
+          
+          # Get all untagged package versions, sorted by creation date (newest first)
+          echo "🔍 Fetching package versions from API..."
+          
+          # Try organization endpoint first
+          API_RESPONSE=$(curl -s \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/orgs/${{ github.repository_owner }}/packages/container/${{ github.event.repository.name }}/versions")
+          
+          # Check if org endpoint failed, try user endpoint
+          if echo "$API_RESPONSE" | grep -q "Not Found\|message.*not found" || [ -z "$API_RESPONSE" ]; then
+            echo "🔄 Organization endpoint failed, trying user endpoint..."
+            API_RESPONSE=$(curl -s \
+              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/user/packages/container/${{ github.event.repository.name }}/versions")
+          fi
+          
+          echo "📋 Raw API Response (first 500 chars):"
+          echo "$API_RESPONSE" | head -c 500
+          echo ""
+          echo "📋 API Response type: $(echo "$API_RESPONSE" | jq -r 'type' 2>/dev/null || echo "invalid JSON")"
+          
+          # Check if response is an array
+          if echo "$API_RESPONSE" | jq -e 'type == "array"' >/dev/null 2>&1; then
+            echo "✅ Valid array response received"
+            echo "📊 Total versions found: $(echo "$API_RESPONSE" | jq 'length')"
+            
+            # Show structure of first item for debugging
+            echo "📋 First item structure:"
+            echo "$API_RESPONSE" | jq -r '.[0] | keys' 2>/dev/null || echo "No items in array"
+            
+            # Show metadata structure for debugging
+            echo "📋 Metadata structure:"
+            echo "$API_RESPONSE" | jq -r '.[0].metadata | keys' 2>/dev/null || echo "No metadata"
+            
+            # Show container structure if it exists
+            echo "📋 Container structure:"
+            echo "$API_RESPONSE" | jq -r '.[0].metadata.container | keys' 2>/dev/null || echo "No container metadata"
+            
+            # Show first few items with their tags for debugging
+            echo "📋 First 3 items with tags:"
+            echo "$API_RESPONSE" | jq -r '.[0:3] | .[] | {id: .id, tags: .metadata.container.tags}' 2>/dev/null || echo "Cannot show tags"
+            
+            # Try to get untagged versions with better error handling
+            # First, let's see what the actual structure looks like
+            echo "📋 Looking for untagged versions..."
+            VERSIONS=$(echo "$API_RESPONSE" | jq -r '
+              .[] | 
+              select(
+                has("metadata") and 
+                .metadata | has("container") and 
+                .metadata.container | has("tags") and 
+                (.metadata.container.tags | length == 0)
+              ) | 
+              .id' 2>/dev/null | head -n 50)
+            
+            # If no untagged found, let's also check for versions with empty tag arrays differently
+            if [ -z "$VERSIONS" ]; then
+              echo "📋 Checking for versions with empty or null tags..."
+              VERSIONS=$(echo "$API_RESPONSE" | jq -r '
+                .[] | 
+                select(
+                  (.metadata.container.tags | length == 0) or
+                  (.metadata.container.tags == null) or
+                  (.metadata.container.tags == [])
+                ) | 
+                .id' 2>/dev/null | head -n 50)
+            fi
+          else
+            echo "❌ Invalid response format"
+            echo "$API_RESPONSE" | jq '.' 2>/dev/null || echo "Not valid JSON"
+            VERSIONS=""
+          fi
+          
+          if [ -z "$VERSIONS" ]; then
+            echo "ℹ️  No untagged versions found"
+            exit 0
+          fi
+          
+          TOTAL_COUNT=$(echo "$VERSIONS" | wc -l)
+          DELETE_COUNT=$((TOTAL_COUNT - KEEP_COUNT))
+          
+          echo "📊 Found $TOTAL_COUNT untagged versions"
+          
+          if [ $DELETE_COUNT -le 0 ]; then
+            echo "ℹ️  No versions to delete (keeping $KEEP_COUNT, found $TOTAL_COUNT)"
+            exit 0
+          fi
+          
+          echo "🗑️  Will delete $DELETE_COUNT old untagged versions"
+          
+          # Delete old untagged versions (skip the first KEEP_COUNT)
+          echo "$VERSIONS" | tail -n +$((KEEP_COUNT + 1)) | while read -r VERSION_ID; do
+            if [ -n "$VERSION_ID" ]; then
+              echo "🗑️  Deleting untagged version: $VERSION_ID"
+              # Try org endpoint first, then user endpoint
+              RESPONSE=$(curl -s -w "%{http_code}" -o /dev/null -X DELETE \
+                -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                -H "Accept: application/vnd.github.v3+json" \
+                "https://api.github.com/orgs/${{ github.repository_owner }}/packages/container/${{ github.event.repository.name }}/versions/$VERSION_ID" 2>/dev/null)
+              
+              if [ "$RESPONSE" != "204" ]; then
+                echo "🔄 Trying user endpoint for deletion..."
+                RESPONSE=$(curl -s -w "%{http_code}" -o /dev/null -X DELETE \
+                  -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                  -H "Accept: application/vnd.github.v3+json" \
+                  "https://api.github.com/user/packages/container/${{ github.event.repository.name }}/versions/$VERSION_ID")
+              fi
+              
+              if [ "$RESPONSE" = "204" ]; then
+                echo "✅ Successfully deleted version $VERSION_ID"
+              else
+                echo "❌ Failed to delete version $VERSION_ID (HTTP $RESPONSE)"
+              fi
+              
+              # Rate limiting - wait 1 second between deletions
+              sleep 1
+            fi
           done
+          
+          echo "✅ Cleanup completed"
+
+      - name: Clean up old tagged images (keep last 10 versions)
+        run: |
+          # Get the package name (repository name in lowercase)
+          PACKAGE_NAME=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          KEEP_TAGGED_COUNT=10
+          
+          echo "🧹 Cleaning up old tagged images (keeping last $KEEP_TAGGED_COUNT)"
+          
+          # Get all tagged package versions, sorted by creation date (newest first)
+          echo "🔍 Fetching tagged package versions..."
+          
+          # Reuse the same API response from earlier or fetch again if needed
+          if [ -z "$API_RESPONSE" ] || ! echo "$API_RESPONSE" | jq -e 'type == "array"' >/dev/null 2>&1; then
+            API_RESPONSE=$(curl -s \
+              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/orgs/${{ github.repository_owner }}/packages/container/${{ github.event.repository.name }}/versions")
+            
+            if echo "$API_RESPONSE" | grep -q "Not Found\|message.*not found" || [ -z "$API_RESPONSE" ]; then
+              API_RESPONSE=$(curl -s \
+                -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                -H "Accept: application/vnd.github.v3+json" \
+                "https://api.github.com/user/packages/container/${{ github.event.repository.name }}/versions")
+            fi
+          fi
+          
+          if echo "$API_RESPONSE" | jq -e 'type == "array"' >/dev/null 2>&1; then
+            TAGGED_VERSIONS=$(echo "$API_RESPONSE" | jq -r '
+              .[] | 
+              select(
+                has("metadata") and 
+                .metadata | has("container") and 
+                .metadata.container | has("tags") and 
+                (.metadata.container.tags | length > 0) and
+                (.metadata.container.tags[] | test("^v[0-9]+\\.[0-9]+\\.[0-9]+$"))
+              ) | 
+              .id' 2>/dev/null | head -n 50)
+          else
+            echo "❌ Invalid API response for tagged versions"
+            TAGGED_VERSIONS=""
+          fi
+          
+          if [ -z "$TAGGED_VERSIONS" ]; then
+            echo "ℹ️  No old tagged versions found"
+            exit 0
+          fi
+          
+          TOTAL_TAGGED=$(echo "$TAGGED_VERSIONS" | wc -l)
+          DELETE_TAGGED=$((TOTAL_TAGGED - KEEP_TAGGED_COUNT))
+          
+          echo "📊 Found $TOTAL_TAGGED tagged versions"
+          
+          if [ $DELETE_TAGGED -le 0 ]; then
+            echo "ℹ️  No tagged versions to delete (keeping $KEEP_TAGGED_COUNT, found $TOTAL_TAGGED)"
+            exit 0
+          fi
+          
+          echo "🗑️  Will delete $DELETE_TAGGED old tagged versions"
+          
+          # Delete old tagged versions (skip the first KEEP_TAGGED_COUNT)
+          echo "$TAGGED_VERSIONS" | tail -n +$((KEEP_TAGGED_COUNT + 1)) | while read -r VERSION_ID; do
+            if [ -n "$VERSION_ID" ]; then
+              echo "🗑️  Deleting old tagged version: $VERSION_ID"
+              # Try org endpoint first, then user endpoint
+              RESPONSE=$(curl -s -w "%{http_code}" -o /dev/null -X DELETE \
+                -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                -H "Accept: application/vnd.github.v3+json" \
+                "https://api.github.com/orgs/${{ github.repository_owner }}/packages/container/${{ github.event.repository.name }}/versions/$VERSION_ID" 2>/dev/null)
+              
+              if [ "$RESPONSE" != "204" ]; then
+                echo "🔄 Trying user endpoint for deletion..."
+                RESPONSE=$(curl -s -w "%{http_code}" -o /dev/null -X DELETE \
+                  -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                  -H "Accept: application/vnd.github.v3+json" \
+                  "https://api.github.com/user/packages/container/${{ github.event.repository.name }}/versions/$VERSION_ID")
+              fi
+              
+              if [ "$RESPONSE" = "204" ]; then
+                echo "✅ Successfully deleted tagged version $VERSION_ID"
+              else
+                echo "❌ Failed to delete tagged version $VERSION_ID (HTTP $RESPONSE)"
+              fi
+              
+              # Rate limiting - wait 1 second between deletions
+              sleep 1
+            fi
+          done
+          
+          echo "✅ Tagged cleanup completed"
