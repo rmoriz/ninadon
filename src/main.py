@@ -214,7 +214,9 @@ def main():
             sys.stdout.flush()
             final_video_path = video_path
         print(f"Final video for posting: {final_video_path}")
+        sys.stdout.flush()
         print("Starting Mastodon post...")
+        sys.stdout.flush()
         mastodon_url = post_to_mastodon(summary, final_video_path, args.url)
         print(f"Mastodon post URL: {mastodon_url}")
         # Temp files are cleaned up automatically
