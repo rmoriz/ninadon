@@ -124,7 +124,12 @@ def summarize_text(transcript, description, uploader):
         "X-Title": "Ninadon",
         "HTTP-Referer": "https://github.com/rmoriz/ninadon"
     }
-    user_content = f"Account name: {uploader}\nDescription: {description}\nTranscript:\n{transcript}"
+    user_prompt = os.environ.get("USER_PROMPT", "")
+    if user_prompt:
+        merged_transcript = f"{user_prompt}\n\n{transcript}"
+    else:
+        merged_transcript = transcript
+    user_content = f"Account name: {uploader}\nDescription: {description}\nTranscript:\n{merged_transcript}"
     data = {
         "model": os.environ.get("OPENROUTER_MODEL", "openrouter/horizon-alpha"),
         "messages": [

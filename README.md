@@ -58,6 +58,7 @@ Set these variables before running:
 - `AUTH_TOKEN` — Mastodon access token
 - `MASTODON_URL` — Mastodon instance URL (default: `https://mastodon.social`)
 - `SYSTEM_PROMPT` — (optional) Custom prompt for summarization
+- `USER_PROMPT` — (optional) Custom user prompt to prepend to the transcript before summarization. If set, its contents will be merged with the transcribed text and sent to OpenRouter for summarization.
 - `OPENROUTER_MODEL` — (optional) Model name for OpenRouter summarization. Defaults to `openrouter/horizon-alpha`.  
   Example: `OPENROUTER_MODEL=tngtech/deepseek-r1t2-chimera:free`
 - `ENABLE_TRANSCODING` — (optional) If set to `1`, `true`, or `yes` (case-insensitive), enables video transcoding to H.265 for files >25MB. Default: transcoding is disabled and the original video is used.
