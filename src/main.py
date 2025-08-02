@@ -126,7 +126,7 @@ def summarize_text(transcript, description, uploader):
     }
     user_content = f"Account name: {uploader}\nDescription: {description}\nTranscript:\n{transcript}"
     data = {
-        "model": "tngtech/deepseek-r1t2-chimera:free",
+        "model": os.environ.get("OPENROUTER_MODEL", "openrouter/horizon-alpha"),
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_content}
