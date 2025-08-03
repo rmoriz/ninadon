@@ -122,7 +122,7 @@ def summarize_text(transcript, description, uploader):
     merged_transcript = f"{user_prompt}\n\n{transcript}" if user_prompt else transcript
     user_content = f"Account name: {uploader}\nDescription: {description}\nTranscript:\n{merged_transcript}"
     data = {
-        "model": getenv("OPENROUTER_MODEL", "openrouter/horizon-alpha"),
+        "model": getenv("OPENROUTER_MODEL", "openrouter/horizon-beta"),
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_content}
