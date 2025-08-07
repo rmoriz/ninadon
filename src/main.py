@@ -128,8 +128,23 @@ def summarize_text(transcript, description, uploader):
             {"role": "user", "content": user_content}
         ]
     }
+    import sys
+    # Log OpenRouter request (hide API key)
+    log_headers = dict(headers)
+    if 'Authorization' in log_headers:
+        log_headers['Authorization'] = 'Bearer ***REDACTED***'
+    print(f"[OpenRouter REQUEST] URL: {url}", file=sys.stderr)
+    print(f"[OpenRouter REQUEST] Headers: {log_headers}", file=sys.stderr)
+    print(f"[OpenRouter REQUEST] Payload: {data}", file=sys.stderr)
     resp = requests.post(url, headers=headers, json=data)
-    resp.raise_for_status()
+    print(f"[OpenRouter RESPONSE] Status: {resp.status_code}", file=sys.stderr)
+    print(f"[OpenRouter RESPONSE] Body: {resp.text}", file=sys.stderr)
+    try:
+        resp.raise_for_status()
+    except requests.exceptions.HTTPError as e:
+        if resp.status_code == 404:
+            print_flush("ERROR: 404 Not Found from OpenRouter API. This may mean the model name is invalid or unavailable. Please check the OPENROUTER_MODEL environment variable and use a valid model name, such as 'openai/gpt-4o'.")
+        raise
     summary = resp.json()["choices"][0]["message"]["content"]
     return summary
 
@@ -195,6 +210,7 @@ def post_to_mastodon(summary, video_path, source_url, mime_type=None):
 def main():
     parser = argparse.ArgumentParser(description="Download, transcribe, summarize, and post video.")
     parser.add_argument('url', help='Video URL (YouTube, Instagram, TikTok)')
+    parser.add_argument('--dry', action='store_true', help='Perform dry run without posting to Mastodon')
     args = parser.parse_args()
     with tempfile.TemporaryDirectory() as tmpdir:
         import sys
@@ -218,9 +234,15 @@ def main():
             print_flush("Transcoding is disabled. Using original video.")
             final_video_path = video_path
         print_flush(f"Final video for posting: {final_video_path}")
-        print_flush("Starting Mastodon post...")
-        mastodon_url = post_to_mastodon(summary, final_video_path, args.url, mime_type)
-        print_flush(f"Mastodon post URL: {mastodon_url}")
+        if args.dry:
+            print_flush("DRY RUN: Skipping Mastodon post")
+            print_flush(f"Would post summary:\n{summary}")
+            print_flush(f"Would post video: {final_video_path}")
+            print_flush(f"Would include source URL: {args.url}")
+        else:
+            print_flush("Starting Mastodon post...")
+            mastodon_url = post_to_mastodon(summary, final_video_path, args.url, mime_type)
+            print_flush(f"Mastodon post URL: {mastodon_url}")
         # Temp files are cleaned up automatically
 
 if __name__ == "__main__":

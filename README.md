@@ -77,6 +77,16 @@ Set these variables before running:
 python src/main.py "https://www.youtube.com/watch?v=example"
 ```
 
+#### Dry Run
+
+To test the workflow without actually posting to Mastodon, use the `--dry` flag:
+
+```sh
+python src/main.py --dry "https://www.youtube.com/watch?v=example"
+```
+
+This will download, transcribe, and summarize the video, but skip the actual Mastodon post.
+
 ### Docker
 
 Using the prebuilt image:
@@ -99,11 +109,23 @@ docker run --rm \
   ninadon "https://www.youtube.com/watch?v=example"
 ```
 
+#### Docker Dry Run
+
+For dry run with Docker (note: AUTH_TOKEN and MASTODON_URL are not required for dry runs):
+
+```sh
+docker run --rm \
+  -e OPENROUTER_API_KEY=your_openrouter_key \
+  ghcr.io/rmoriz/ninadon:latest --dry "https://www.youtube.com/watch?v=example"
+```
+
 ## Example Output
 
 ### Example Mastodon Post
 
 ![Example Mastodon Post](docs/example-mastodon-post.png)
+
+### Normal Run Output
 
 ```
 Working in temp dir: /tmp/tmpabcd1234
@@ -117,6 +139,23 @@ Uploading video to Mastodon...
 Waiting for Mastodon to process video...
 Posting status to Mastodon...
 Posted to Mastodon: https://mastodon.social/@youruser/123456
+```
+
+### Dry Run Output
+
+```
+Working in temp dir: /tmp/tmpabcd1234
+Downloaded video to: /tmp/tmpabcd1234/video.mp4
+Transcript:
+  Pizza-Schiffchen, Puhl, alles wunderbar, wunderschönes Wett
+Summary:
+  A short summary of the video content...
+Final video for posting: /tmp/tmpabcd1234/video_h265.mp4
+DRY RUN: Skipping Mastodon post
+Would post summary:
+  A short summary of the video content...
+Would post video: /tmp/tmpabcd1234/video_h265.mp4
+Would include source URL: https://www.youtube.com/watch?v=example
 ```
 
 ## Troubleshooting

@@ -32,6 +32,8 @@ def test_maybe_reencode_large(tmp_path):
 def test_summarize_text(monkeypatch):
     # Mock requests.post to return a fake summary
     class FakeResp:
+        status_code = 200
+        text = '{"choices": [{"message": {"content": "summary"}}]}'
         def raise_for_status(self): pass
         def json(self): return {"choices": [{"message": {"content": "summary"}}]}
     monkeypatch.setattr(main.requests, "post", lambda *a, **kw: FakeResp())
@@ -93,5 +95,31 @@ def test_main_flow(monkeypatch, tmp_path):
     sys.argv = ["main.py", "http://test"]
     try:
         main.main()
+    finally:
+        sys.argv = sys_argv
+
+def test_main_flow_dry_run(monkeypatch, tmp_path):
+    # Patch all major functions to simulate main() flow with dry run
+    monkeypatch.setattr(main, "download_video", lambda url, tmpdir: (str(tmp_path / "video.mp4"), "desc", "uploader", "video/mp4"))
+    monkeypatch.setattr(main, "transcribe_video", lambda path: "transcript")
+    monkeypatch.setattr(main, "summarize_text", lambda t, d, u: "summary")
+    monkeypatch.setattr(main, "maybe_reencode", lambda path, tmpdir: path)
+    
+    # Mock post_to_mastodon to ensure it's NOT called during dry run
+    post_to_mastodon_called = False
+    def mock_post_to_mastodon(*args, **kwargs):
+        nonlocal post_to_mastodon_called
+        post_to_mastodon_called = True
+        return "http://mastodon/post"
+    
+    monkeypatch.setattr(main, "post_to_mastodon", mock_post_to_mastodon)
+    
+    # Simulate CLI args with --dry flag
+    sys_argv = sys.argv
+    sys.argv = ["main.py", "--dry", "http://test"]
+    try:
+        main.main()
+        # Verify that post_to_mastodon was NOT called
+        assert not post_to_mastodon_called, "post_to_mastodon should not be called during dry run"
     finally:
         sys.argv = sys_argv
