@@ -42,10 +42,12 @@ def test_summarize_text(monkeypatch):
     assert result == "summary"
 
 def test_transcribe_video(monkeypatch, fake_video_path):
-    # Mock whisper.load_model and model.transcribe
+    # Mock faster_whisper.WhisperModel and model.transcribe
+    fake_segment = MagicMock()
+    fake_segment.text = "transcribed"
     fake_model = MagicMock()
-    fake_model.transcribe.return_value = {"text": "transcribed"}
-    monkeypatch.setattr(main.whisper, "load_model", lambda _: fake_model)
+    fake_model.transcribe.return_value = ([fake_segment], {})
+    monkeypatch.setattr(main, "WhisperModel", lambda _: fake_model)
     result = main.transcribe_video(fake_video_path)
     assert result == "transcribed"
 

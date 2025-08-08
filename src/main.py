@@ -5,7 +5,7 @@ import argparse
 import tempfile
 import os
 import yt_dlp
-import whisper
+from faster_whisper import WhisperModel
 import requests
 import subprocess
 from mastodon import Mastodon
@@ -98,9 +98,10 @@ def download_video(url, tmpdir):
     return filepath, description, uploader, mime_type
 
 def transcribe_video(video_path):
-    model = whisper.load_model("base")
-    result = model.transcribe(video_path)
-    return result["text"]
+    model = WhisperModel("base")
+    segments, info = model.transcribe(video_path)
+    text = " ".join(segment.text for segment in segments)
+    return text
 
 def getenv(key, default=None, required=False):
     val = os.environ.get(key, default)

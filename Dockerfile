@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y ffmpeg procps && rm -rf /var/lib/apt/lists/*
@@ -17,11 +17,11 @@ RUN chown -R appuser:appuser /app
 USER appuser
 ENV PATH="/app/.local/bin:${PATH}"
 
-# Install Whisper and pre-download model as appuser
+# Install faster-whisper and pre-download model as appuser
 COPY requirements.txt ./requirements.whisper.txt
-RUN grep openai-whisper requirements.whisper.txt > whisper-only.txt
+RUN grep faster-whisper requirements.whisper.txt > whisper-only.txt
 RUN pip install --no-cache-dir -r whisper-only.txt
-RUN python -c "import whisper; whisper.load_model('base')"
+RUN python -c "from faster_whisper import WhisperModel; WhisperModel('base')"
 
 # Install all other dependencies and app code as appuser
 COPY requirements.txt ./
