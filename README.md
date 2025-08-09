@@ -277,6 +277,112 @@ export AUTH_TOKEN=your_token
 docker-compose run --rm ninadon "https://www.youtube.com/watch?v=example"
 ```
 
+## Shell Functions
+
+For easier usage, you can add these shell functions to your `.bashrc` or `.zshrc`:
+
+```bash
+# ninadon [args...]
+ninadon() {
+  # Datenverzeichnis konfigurierbar, Default: ~/.ninadon
+  local data_dir="${NINADON_DATA_DIR:-$HOME/.ninadon}"
+  mkdir -p "$data_dir"
+
+  docker run --pull=always --rm \
+    -e SYSTEM_PROMPT='Fasse das Video für Mastodon auf Deutsch zusammen (maximal 350 Zeichen + 0–3 Hashtags). Darf schon witzig und aktivierend sein. Beachte den Context, sofern er brauchbare Indizien liefert.' \
+    -e AUTH_TOKEN="${MASTODON_AUTH_TOKEN:?Setze MASTODON_AUTH_TOKEN}" \
+    -e OPENROUTER_API_KEY \
+    -e OPENROUTER_MODEL \
+    -e CONTEXT_MODEL="${CONTEXT_MODEL:-${OPENROUTER_MODEL}}" \
+    -e ENHANCE_MODEL="${ENHANCE_MODEL:-google/gemini-2.5-flash-lite}" \
+    -e MASTODON_URL="${MASTODON_URL:-https://mastodon.social}" \
+    -v "${data_dir}:/app/data" \
+    ghcr.io/rmoriz/ninadon:latest --enhance "$@"
+    # Optional: Map file permissions correctly (Linux/macOS)
+    # --user "$(id -u):$(id -g)" \
+}
+
+# Dry-Run Wrapper
+dry_ninadon() {
+  ninadon --dry "$@"
+}
+
+# seed_ninadon <profile-or-channel-url> [count=20]
+function seed_ninadon() {
+  local profile_url="${1:-}"
+  local count="${2:-20}"
+
+  if [[ -z "$profile_url" ]]; then
+    echo "Usage: seed_ninadon <profile-or-channel-url> [count=20]" >&2
+    echo "Examples:"
+    echo "  seed_ninadon https://www.tiktok.com/@nimasigg 20"
+    echo "  seed_ninadon https://www.instagram.com/natgeo/ 15"
+    echo "  seed_ninadon https://www.youtube.com/@veritasium 10"
+    return 1
+  fi
+
+  # macOS often doesn't have 'tac'; fallback to 'tail -r'
+  local REVERSE="tac"
+  if ! command -v tac >/dev/null 2>&1; then
+    if command -v tail >/dev/null 2>&1; then
+      REVERSE="tail -r"
+    else
+      # portable AWK reverse as last option
+      REVERSE="awk '{a[NR]=\$0} END{for(i=NR;i>0;i--) print a[i]}'"
+    fi
+  fi
+
+  # yt-dlp: get first N entries and output their webpage URLs (platform-robust)
+  # -I 1:COUNT = only items 1..COUNT
+  # %(webpage_url)s = the "normal" link to the clip (not the file URL)
+  # --ignore-errors/--no-warnings: more robust against individual failures
+  yt-dlp --ignore-errors --no-warnings -I "1:${count}" --print "%(webpage_url)s" "$profile_url" \
+    | eval "$REVERSE" \
+    | while IFS= read -r url; do
+        # Optional: only process real video pages (some simple heuristics)
+        case "$url" in
+          *tiktok.com/*/video/*|*instagram.com/p/*|*instagram.com/reel/*|*youtube.com/watch*\?v=*|*youtube.com/shorts/*|*youtu.be/*)
+            dry_ninadon "$url"
+            ;;
+          *)
+            # for platforms/variants that don't match patterns, still execute:
+            dry_ninadon "$url"
+            ;;
+        esac
+      done
+}
+```
+
+### Usage Examples:
+
+```bash
+# Set up environment variables
+export MASTODON_AUTH_TOKEN="your_mastodon_token"
+export OPENROUTER_API_KEY="your_openrouter_key"
+
+# Process a single video
+ninadon "https://www.youtube.com/watch?v=example"
+
+# Dry run (no posting)
+dry_ninadon "https://www.tiktok.com/@user/video/123456"
+
+# Seed database with recent videos from a channel (dry run)
+seed_ninadon "https://www.youtube.com/@veritasium" 10
+
+# Custom data directory
+export NINADON_DATA_DIR="/path/to/your/data"
+ninadon "https://www.instagram.com/reel/example"
+```
+
+### Features:
+
+- **Automatic Updates**: `--pull=always` ensures you're using the latest version
+- **Persistent Data**: Uses `~/.ninadon` by default (configurable with `NINADON_DATA_DIR`)
+- **German Summaries**: Pre-configured with German system prompt for Mastodon
+- **Enhanced Mode**: Always uses `--enhance` for image analysis
+- **Bulk Processing**: `seed_ninadon` processes multiple videos from a channel/profile
+- **Cross-Platform**: Works on Linux, macOS, and Windows (with WSL)
+
 ## Example Output
 
 ### Example Mastodon Post
