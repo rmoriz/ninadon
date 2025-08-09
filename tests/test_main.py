@@ -403,3 +403,60 @@ def test_database_duplicate_handling(tmp_path, monkeypatch):
     assert ("Test Video", "youtube") in titles_platforms
     assert ("Different Video", "tiktok") in titles_platforms
     assert ("Test Video", "instagram") in titles_platforms
+
+def test_configurable_image_analysis_prompt(monkeypatch, tmp_path):
+    # Test that IMAGE_ANALYSIS_PROMPT environment variable works
+    custom_prompt = "Describe the visual elements and narrative flow in these video frames"
+    monkeypatch.setenv("IMAGE_ANALYSIS_PROMPT", custom_prompt)
+    
+    # Mock the OpenRouter call to capture the request
+    captured_requests = []
+    class FakeResp:
+        status_code = 200
+        text = '{"choices": [{"message": {"content": "Custom analysis result"}}]}'
+        def raise_for_status(self): pass
+        def json(self): return {"choices": [{"message": {"content": "Custom analysis result"}}]}
+    
+    def mock_post(url, headers=None, json=None):
+        captured_requests.append(json)
+        return FakeResp()
+    
+    monkeypatch.setattr(main.requests, "post", mock_post)
+    os.environ["OPENROUTER_API_KEY"] = "dummy"
+    
+    # Create temporary image files for testing
+    temp_images = []
+    try:
+        for i in range(2):
+            tmp_img = tempfile.NamedTemporaryFile(suffix='.jpg', delete=False)
+            tmp_img.write(b"fake_image_data")
+            tmp_img.close()
+            temp_images.append(tmp_img.name)
+        
+        # Call the image analysis function
+        result = main.analyze_images_with_openrouter(temp_images)
+        
+        # Verify that the custom prompt was used
+        assert len(captured_requests) == 1
+        request_data = captured_requests[0]
+        messages = request_data["messages"]
+        user_message = messages[0]
+        content = user_message["content"]
+        
+        # Find the text content in the message
+        text_content = None
+        for item in content:
+            if item["type"] == "text":
+                text_content = item["text"]
+                break
+        
+        assert text_content == custom_prompt
+        assert result == "Custom analysis result"
+        
+    finally:
+        # Clean up temporary files
+        for img_path in temp_images:
+            try:
+                os.unlink(img_path)
+            except:
+                pass

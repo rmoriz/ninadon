@@ -178,10 +178,11 @@ def analyze_images_with_openrouter(image_paths):
     }
     
     # Prepare image content for the API
+    image_prompt = getenv("IMAGE_ANALYSIS_PROMPT", "Analyze these photos from a tiktok clip, make a connection between the photos")
     content = [
         {
             "type": "text",
-            "text": "Analyze these photos from a tiktok clip, make a connection between the photos"
+            "text": image_prompt
         }
     ]
     
