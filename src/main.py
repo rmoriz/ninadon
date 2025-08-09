@@ -332,7 +332,7 @@ def generate_context_summary(uploader):
     
     # Call OpenRouter to summarize the context
     api_key = getenv("OPENROUTER_API_KEY", required=True)
-    context_model = getenv("CONTEXT_MODEL", "openrouter/horizon-beta")
+    context_model = getenv("CONTEXT_MODEL", "tngtech/deepseek-r1t2-chimera:free")
     url = "https://openrouter.ai/api/v1/chat/completions"
     
     headers = {
@@ -422,7 +422,7 @@ def summarize_text(transcript, description, uploader, image_analysis=None, conte
         user_content += f"\n\nContext:\n{context}"
     
     data = {
-        "model": getenv("OPENROUTER_MODEL", "openrouter/horizon-beta"),
+        "model": getenv("OPENROUTER_MODEL", "tngtech/deepseek-r1t2-chimera:free"),
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_content}

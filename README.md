@@ -71,13 +71,13 @@ Set these variables before running:
 - `MASTODON_URL` — Mastodon instance URL (default: `https://mastodon.social`)
 - `SYSTEM_PROMPT` — (optional) Custom prompt for summarization
 - `USER_PROMPT` — (optional) Custom user prompt to prepend to the transcript before summarization. If set, its contents will be merged with the transcribed text and sent to OpenRouter for summarization.
-- `OPENROUTER_MODEL` — (optional) Model name for OpenRouter summarization. Defaults to `openrouter/horizon-beta`.  
-  Example: `OPENROUTER_MODEL=tngtech/deepseek-r1t2-chimera:free`
+- `OPENROUTER_MODEL` — (optional) Model name for OpenRouter summarization. Defaults to `tngtech/deepseek-r1t2-chimera:free`.  
+  Example: `OPENROUTER_MODEL=openai/gpt-4o`
 - `ENABLE_TRANSCODING` — (optional) If set to `1`, `true`, or `yes` (case-insensitive), enables video transcoding to H.265 for files >25MB. Default: transcoding is disabled and the original video is used.
 - `TRANSCODE_TIMEOUT` — (optional) Timeout in seconds for ffmpeg transcoding. Default: `600`.
 - `MASTODON_MEDIA_TIMEOUT` — (optional) Timeout in seconds to wait for Mastodon to process uploaded media. Default: `600`.
 - `ENHANCE_MODEL` — (optional) Model name for OpenRouter image analysis when using `--enhance` flag. Defaults to `google/gemini-2.5-flash-lite`.
-- `CONTEXT_MODEL` — (optional) Model name for OpenRouter context generation from user database. Defaults to `openrouter/horizon-beta`.
+- `CONTEXT_MODEL` — (optional) Model name for OpenRouter context generation from user database. Defaults to `tngtech/deepseek-r1t2-chimera:free`.
 - `DATA_PATH` — (optional) Directory path where user databases and context files are stored. Defaults to `/app/data`. For Docker, mount a volume to this path for persistence.
 
 ## Usage
@@ -258,7 +258,7 @@ services:
       - MASTODON_URL=${MASTODON_URL:-https://mastodon.social}
       - DATA_PATH=/app/data
       - ENHANCE_MODEL=${ENHANCE_MODEL:-google/gemini-2.5-flash-lite}
-      - CONTEXT_MODEL=${CONTEXT_MODEL:-openrouter/horizon-beta}
+      - CONTEXT_MODEL=${CONTEXT_MODEL:-tngtech/deepseek-r1t2-chimera:free}
     volumes:
       - ninadon-data:/app/data
     command: ["--dry", "https://www.youtube.com/watch?v=example"]

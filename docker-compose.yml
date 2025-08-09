@@ -21,9 +21,9 @@ services:
       - DATA_PATH=/app/data
       - SYSTEM_PROMPT=${SYSTEM_PROMPT}
       - USER_PROMPT=${USER_PROMPT}
-      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-openrouter/horizon-beta}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-tngtech/deepseek-r1t2-chimera:free}
       - ENHANCE_MODEL=${ENHANCE_MODEL:-google/gemini-2.5-flash-lite}
-      - CONTEXT_MODEL=${CONTEXT_MODEL:-openrouter/horizon-beta}
+      - CONTEXT_MODEL=${CONTEXT_MODEL:-tngtech/deepseek-r1t2-chimera:free}
       
       # Optional transcoding settings
       - ENABLE_TRANSCODING=${ENABLE_TRANSCODING:-false}
