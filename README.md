@@ -78,6 +78,7 @@ Set these variables before running:
 - `MASTODON_MEDIA_TIMEOUT` — (optional) Timeout in seconds to wait for Mastodon to process uploaded media. Default: `600`.
 - `ENHANCE_MODEL` — (optional) Model name for OpenRouter image analysis when using `--enhance` flag. Defaults to `google/gemini-2.5-flash-lite`.
 - `CONTEXT_MODEL` — (optional) Model name for OpenRouter context generation from user database. Defaults to `tngtech/deepseek-r1t2-chimera:free`.
+- `CONTEXT_PROMPT` — (optional) Custom prompt for context generation from user video history. Defaults to analyzing content themes, interests, and patterns.
 - `IMAGE_ANALYSIS_PROMPT` — (optional) Custom prompt for image analysis when using `--enhance` flag. Defaults to `"Analyze these photos from a tiktok clip, make a connection between the photos"`.
 - `DATA_PATH` — (optional) Directory path where user databases and context files are stored. Defaults to `/app/data`. For Docker, mount a volume to this path for persistence.
 

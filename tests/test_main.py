@@ -460,3 +460,40 @@ def test_configurable_image_analysis_prompt(monkeypatch, tmp_path):
                 os.unlink(img_path)
             except:
                 pass
+
+def test_configurable_context_prompt(tmp_path, monkeypatch):
+    # Test that CONTEXT_PROMPT environment variable works
+    custom_context_prompt = "Create a brief summary of this creator's video patterns and audience engagement trends"
+    monkeypatch.setenv("CONTEXT_PROMPT", custom_context_prompt)
+    monkeypatch.setenv("DATA_PATH", str(tmp_path))
+    
+    # Create initial database entry
+    main.add_to_database("testuser", "Test Video", "Description", ["#test"], "youtube", "Test transcript")
+    
+    # Mock the OpenRouter call to capture the request
+    captured_requests = []
+    class FakeResp:
+        status_code = 200
+        text = '{"choices": [{"message": {"content": "Custom context summary"}}]}'
+        def raise_for_status(self): pass
+        def json(self): return {"choices": [{"message": {"content": "Custom context summary"}}]}
+    
+    def mock_post(url, headers=None, json=None):
+        captured_requests.append(json)
+        return FakeResp()
+    
+    monkeypatch.setattr(main.requests, "post", mock_post)
+    os.environ["OPENROUTER_API_KEY"] = "dummy"
+    
+    # Generate context with custom prompt
+    result = main.generate_context_summary("testuser")
+    
+    # Verify that the custom prompt was used
+    assert len(captured_requests) == 1
+    request_data = captured_requests[0]
+    messages = request_data["messages"]
+    system_message = messages[0]
+    
+    assert system_message["role"] == "system"
+    assert system_message["content"] == custom_context_prompt
+    assert result == "Custom context summary"

@@ -359,7 +359,7 @@ def generate_context_summary(uploader):
         "HTTP-Referer": "https://github.com/rmoriz/ninadon"
     }
     
-    system_prompt = "Analyze the following video history and create a concise context summary that captures the user's content themes, interests, and patterns. Focus on recurring topics, style, and audience. If a previous context summary is provided, build upon it and update it with new insights from the recent videos, maintaining continuity while incorporating new patterns or changes."
+    system_prompt = getenv("CONTEXT_PROMPT", "Analyze the following video history and create a concise context summary that captures the user's content themes, interests, and patterns. Focus on recurring topics, style, and audience. If a previous context summary is provided, build upon it and update it with new insights from the recent videos, maintaining continuity while incorporating new patterns or changes.")
     
     data = {
         "model": context_model,
