@@ -122,6 +122,7 @@ The application automatically maintains a database for each content creator and 
 - Context summaries are stored in: `$DATA_PATH/$username/context.json`
 - Database keeps the latest 25 video entries automatically
 - Data persists between runs when `DATA_PATH` is properly configured
+- **Duplicate Prevention**: Re-processing the same video updates the existing entry instead of creating duplicates
 
 **Stored Information:**
 - Date and time of processing

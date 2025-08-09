@@ -282,10 +282,18 @@ def save_database(uploader, database):
         print_flush(f"Warning: Could not save database for {uploader}: {e}")
 
 def add_to_database(uploader, title, description, hashtags, platform, transcript, image_analysis=None):
-    """Add a new entry to the user's database."""
+    """Add a new entry to the user's database or update existing entry if video already exists."""
     database = load_database(uploader)
     
-    entry = {
+    # Check if entry with same title already exists
+    existing_index = None
+    for i, entry in enumerate(database):
+        if entry.get("title") == title and entry.get("platform") == platform:
+            existing_index = i
+            break
+    
+    # Create new entry data
+    entry_data = {
         "date": datetime.now().isoformat(),
         "title": title,
         "description": description,
@@ -295,9 +303,17 @@ def add_to_database(uploader, title, description, hashtags, platform, transcript
     }
     
     if image_analysis:
-        entry["image_recognition"] = image_analysis
+        entry_data["image_recognition"] = image_analysis
     
-    database.append(entry)
+    if existing_index is not None:
+        # Update existing entry
+        print_flush(f"Updating existing database entry for: {title}")
+        database[existing_index] = entry_data
+    else:
+        # Add new entry
+        print_flush(f"Adding new database entry for: {title}")
+        database.append(entry_data)
+    
     save_database(uploader, database)
     return database
 

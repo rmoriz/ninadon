@@ -353,3 +353,53 @@ def test_context_generation_with_existing_context(tmp_path, monkeypatch):
     
     # Verify the result
     assert result == "Updated context summary"
+
+def test_database_duplicate_handling(tmp_path, monkeypatch):
+    # Test that duplicate videos update existing entries instead of creating new ones
+    monkeypatch.setenv("DATA_PATH", str(tmp_path))
+    
+    # Add initial entry
+    main.add_to_database("testuser", "Test Video", "Description", ["#test"], "youtube", "Original transcript")
+    
+    # Verify initial entry
+    database = main.load_database("testuser")
+    assert len(database) == 1
+    assert database[0]["transcript"] == "Original transcript"
+    assert "image_recognition" not in database[0]
+    
+    # Add same video again with updated content and image analysis
+    main.add_to_database("testuser", "Test Video", "Updated description", ["#test", "#new"], "youtube", "Updated transcript", "Image analysis")
+    
+    # Verify that entry was updated, not duplicated
+    database = main.load_database("testuser")
+    assert len(database) == 1  # Still only one entry
+    
+    # Verify updated content
+    entry = database[0]
+    assert entry["title"] == "Test Video"
+    assert entry["description"] == "Updated description"
+    assert entry["hashtags"] == ["#test", "#new"]
+    assert entry["transcript"] == "Updated transcript"
+    assert entry["image_recognition"] == "Image analysis"
+    
+    # Add different video to ensure new entries still work
+    main.add_to_database("testuser", "Different Video", "Different description", ["#different"], "tiktok", "Different transcript")
+    
+    # Verify we now have two entries
+    database = main.load_database("testuser")
+    assert len(database) == 2
+    assert database[0]["title"] == "Test Video"  # Updated entry
+    assert database[1]["title"] == "Different Video"  # New entry
+    
+    # Test same title but different platform (should be treated as different video)
+    main.add_to_database("testuser", "Test Video", "Same title different platform", ["#instagram"], "instagram", "Instagram transcript")
+    
+    # Verify we now have three entries
+    database = main.load_database("testuser")
+    assert len(database) == 3
+    
+    # Verify all three entries exist
+    titles_platforms = [(entry["title"], entry["platform"]) for entry in database]
+    assert ("Test Video", "youtube") in titles_platforms
+    assert ("Different Video", "tiktok") in titles_platforms
+    assert ("Test Video", "instagram") in titles_platforms
