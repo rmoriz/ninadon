@@ -4,3 +4,9 @@ __pycache__/
 tmp/
 .DS_Store
 .venv
+
+# Data directories
+data/
+ninadon-data/
+*/database.json
+*/context.json

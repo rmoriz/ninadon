@@ -23,6 +23,14 @@ Automate the workflow of downloading a video (YouTube, Instagram, TikTok), trans
 - Summarize transcript with OpenRouter AI
 - Optionally re-encode videos >25MB to H.265 (ffmpeg)
 - Post summary and video to Mastodon
+- **Enhanced analysis with `--enhance` flag:**
+  - Extract still images from videos for visual analysis
+  - Analyze images using OpenRouter vision models
+- **Database and Context system:**
+  - Automatically maintains per-user databases (`$user/database.json`)
+  - Stores video metadata, transcripts, and image analysis
+  - Generates contextual summaries from user history
+  - Includes context in summarization for personalized content
 - Cleans up temporary files automatically
 - Dockerized for easy deployment
 - **Modular, maintainable codebase:**
@@ -69,6 +77,8 @@ Set these variables before running:
 - `TRANSCODE_TIMEOUT` — (optional) Timeout in seconds for ffmpeg transcoding. Default: `600`.
 - `MASTODON_MEDIA_TIMEOUT` — (optional) Timeout in seconds to wait for Mastodon to process uploaded media. Default: `600`.
 - `ENHANCE_MODEL` — (optional) Model name for OpenRouter image analysis when using `--enhance` flag. Defaults to `google/gemini-2.5-flash-lite`.
+- `CONTEXT_MODEL` — (optional) Model name for OpenRouter context generation from user database. Defaults to `openrouter/horizon-beta`.
+- `DATA_PATH` — (optional) Directory path where user databases and context files are stored. Defaults to `/app/data`. For Docker, mount a volume to this path for persistence.
 
 ## Usage
 
@@ -102,6 +112,75 @@ This will extract 5 still images from the video (beginning, end, and 3 equally s
 python src/main.py --dry --enhance "https://www.youtube.com/watch?v=example"
 ```
 
+#### Database and Context System
+
+The application automatically maintains a database for each content creator and uses it to generate contextual summaries:
+
+**Database Storage:**
+- Each user gets their own directory: `$DATA_PATH/$username/`
+- Video data is stored in: `$DATA_PATH/$username/database.json`
+- Context summaries are stored in: `$DATA_PATH/$username/context.json`
+- Database keeps the latest 25 video entries automatically
+- Data persists between runs when `DATA_PATH` is properly configured
+
+**Stored Information:**
+- Date and time of processing
+- Video title and description
+- Platform (TikTok, YouTube, Instagram)
+- Extracted hashtags
+- Full transcript
+- Image analysis (if `--enhance` was used)
+
+**Context Generation:**
+- Before creating the Mastodon post, the system analyzes the user's video history
+- Generates a context summary using OpenRouter AI, building upon previous context
+- Each new context generation includes the existing context to maintain continuity
+- This evolving context is included in the final summarization request
+- Helps create more personalized and contextually aware summaries that improve over time
+
+**Example workflow:**
+1. Video is downloaded and processed
+2. Data is added to `$username/database.json`
+3. Context summary is generated from recent videos + existing context
+4. Updated context summary is saved to `$username/context.json`
+5. Final summary includes current video data, image analysis, and evolving context
+
+#### Persistent Data Storage
+
+For production use, it's important to persist user databases and context files between runs:
+
+**Local Development:**
+```sh
+# Set custom data path
+export DATA_PATH="./data"
+python src/main.py "https://www.youtube.com/watch?v=example"
+```
+
+**Docker with Volume Mount:**
+```sh
+# Create a local directory for persistent data
+mkdir -p ./ninadon-data
+
+# Run with volume mount
+docker run --rm \
+  -e OPENROUTER_API_KEY=your_key \
+  -e DATA_PATH=/app/data \
+  -v $(pwd)/ninadon-data:/app/data \
+  ghcr.io/rmoriz/ninadon:latest "https://www.youtube.com/watch?v=example"
+```
+
+**Docker with Named Volume:**
+```sh
+# Create a named volume
+docker volume create ninadon-data
+
+# Run with named volume
+docker run --rm \
+  -e OPENROUTER_API_KEY=your_key \
+  -v ninadon-data:/app/data \
+  ghcr.io/rmoriz/ninadon:latest "https://www.youtube.com/watch?v=example"
+```
+
 ### Docker
 
 Using the prebuilt image:
@@ -111,6 +190,7 @@ docker run --rm \
   -e OPENROUTER_API_KEY=your_openrouter_key \
   -e AUTH_TOKEN=your_mastodon_token \
   -e MASTODON_URL=https://mastodon.social \
+  -v $(pwd)/ninadon-data:/app/data \
   ghcr.io/rmoriz/ninadon:latest "https://www.youtube.com/watch?v=example"
 ```
 
@@ -121,8 +201,11 @@ docker run --rm \
   -e OPENROUTER_API_KEY=your_openrouter_key \
   -e AUTH_TOKEN=your_mastodon_token \
   -e MASTODON_URL=https://mastodon.social \
+  -v $(pwd)/ninadon-data:/app/data \
   ninadon "https://www.youtube.com/watch?v=example"
 ```
+
+**Note:** The `-v $(pwd)/ninadon-data:/app/data` mount ensures that user databases and context files persist between container runs. The local `ninadon-data` directory will be created automatically.
 
 #### Docker Dry Run
 
@@ -131,6 +214,7 @@ For dry run with Docker (note: AUTH_TOKEN and MASTODON_URL are not required for 
 ```sh
 docker run --rm \
   -e OPENROUTER_API_KEY=your_openrouter_key \
+  -v $(pwd)/ninadon-data:/app/data \
   ghcr.io/rmoriz/ninadon:latest --dry "https://www.youtube.com/watch?v=example"
 ```
 
@@ -144,6 +228,7 @@ docker run --rm \
   -e AUTH_TOKEN=your_mastodon_token \
   -e MASTODON_URL=https://mastodon.social \
   -e ENHANCE_MODEL=google/gemini-2.5-flash-lite \
+  -v $(pwd)/ninadon-data:/app/data \
   ghcr.io/rmoriz/ninadon:latest --enhance "https://www.youtube.com/watch?v=example"
 ```
 
@@ -153,7 +238,43 @@ Or combine with dry run:
 docker run --rm \
   -e OPENROUTER_API_KEY=your_openrouter_key \
   -e ENHANCE_MODEL=google/gemini-2.5-flash-lite \
+  -v $(pwd)/ninadon-data:/app/data \
   ghcr.io/rmoriz/ninadon:latest --dry --enhance "https://www.youtube.com/watch?v=example"
+```
+
+#### Docker Compose
+
+For easier management, you can use Docker Compose:
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+services:
+  ninadon:
+    image: ghcr.io/rmoriz/ninadon:latest
+    environment:
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - AUTH_TOKEN=${AUTH_TOKEN}
+      - MASTODON_URL=${MASTODON_URL:-https://mastodon.social}
+      - DATA_PATH=/app/data
+      - ENHANCE_MODEL=${ENHANCE_MODEL:-google/gemini-2.5-flash-lite}
+      - CONTEXT_MODEL=${CONTEXT_MODEL:-openrouter/horizon-beta}
+    volumes:
+      - ninadon-data:/app/data
+    command: ["--dry", "https://www.youtube.com/watch?v=example"]
+
+volumes:
+  ninadon-data:
+```
+
+Run with:
+```sh
+# Set environment variables
+export OPENROUTER_API_KEY=your_key
+export AUTH_TOKEN=your_token
+
+# Run with Docker Compose
+docker-compose run --rm ninadon "https://www.youtube.com/watch?v=example"
 ```
 
 ## Example Output

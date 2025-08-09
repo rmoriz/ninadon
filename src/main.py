@@ -13,6 +13,8 @@ import time
 import mimetypes
 import base64
 import json
+from datetime import datetime
+import re
 
 def run_ydl(url, ydl_opts, download):
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -90,14 +92,32 @@ def download_video(url, tmpdir):
         }
         info, ydl = run_ydl(url, ydl_opts, True)
         filepath = select_filepath(info, ydl)
+    title = info.get('title', '')
     description = info.get('description', '')
     uploader = info.get('uploader', info.get('channel', info.get('author', '')))
+    
+    # Extract hashtags from title and description
+    hashtags = []
+    text_to_search = f"{title} {description}"
+    hashtag_matches = re.findall(r'#\w+', text_to_search)
+    hashtags = list(set(hashtag_matches))  # Remove duplicates
+    
+    # Determine platform from URL
+    platform = "unknown"
+    if "tiktok.com" in url.lower():
+        platform = "tiktok"
+    elif "youtube.com" in url.lower() or "youtu.be" in url.lower():
+        platform = "youtube"
+    elif "instagram.com" in url.lower():
+        platform = "instagram"
+    
     mime_type = None
     if 'requested_downloads' in info and info['requested_downloads']:
         mime_type = info['requested_downloads'][0].get('mime_type')
     if not mime_type:
         mime_type = info.get('mime_type')
-    return filepath, description, uploader, mime_type
+    
+    return filepath, title, description, uploader, hashtags, platform, mime_type
 
 def transcribe_video(video_path):
     model = whisper.load_model("base")
@@ -214,7 +234,171 @@ def getenv(key, default=None, required=False):
         raise RuntimeError(f"{key} environment variable not set")
     return val
 
-def summarize_text(transcript, description, uploader, image_analysis=None):
+def get_data_root():
+    """Get the root data directory from environment variable or default."""
+    data_path = getenv("DATA_PATH", "/app/data")
+    os.makedirs(data_path, exist_ok=True)
+    return data_path
+
+def get_database_path(uploader):
+    """Get the database file path for a specific user."""
+    # Create user directory if it doesn't exist
+    data_root = get_data_root()
+    user_dir = os.path.join(data_root, uploader)
+    os.makedirs(user_dir, exist_ok=True)
+    return os.path.join(user_dir, "database.json")
+
+def get_context_path(uploader):
+    """Get the context file path for a specific user."""
+    data_root = get_data_root()
+    user_dir = os.path.join(data_root, uploader)
+    os.makedirs(user_dir, exist_ok=True)
+    return os.path.join(user_dir, "context.json")
+
+def load_database(uploader):
+    """Load the database for a specific user."""
+    db_path = get_database_path(uploader)
+    if os.path.exists(db_path):
+        try:
+            with open(db_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError) as e:
+            print_flush(f"Warning: Could not load database for {uploader}: {e}")
+            return []
+    return []
+
+def save_database(uploader, database):
+    """Save the database for a specific user, keeping only the latest 25 entries."""
+    # Keep only the latest 25 entries
+    if len(database) > 25:
+        database = database[-25:]
+    
+    db_path = get_database_path(uploader)
+    try:
+        with open(db_path, 'w', encoding='utf-8') as f:
+            json.dump(database, f, indent=2, ensure_ascii=False)
+        print_flush(f"Database saved for {uploader}: {len(database)} entries")
+    except IOError as e:
+        print_flush(f"Warning: Could not save database for {uploader}: {e}")
+
+def add_to_database(uploader, title, description, hashtags, platform, transcript, image_analysis=None):
+    """Add a new entry to the user's database."""
+    database = load_database(uploader)
+    
+    entry = {
+        "date": datetime.now().isoformat(),
+        "title": title,
+        "description": description,
+        "hashtags": hashtags,
+        "platform": platform,
+        "transcript": transcript
+    }
+    
+    if image_analysis:
+        entry["image_recognition"] = image_analysis
+    
+    database.append(entry)
+    save_database(uploader, database)
+    return database
+
+def generate_context_summary(uploader):
+    """Generate a context summary from the user's database using OpenRouter."""
+    database = load_database(uploader)
+    
+    if not database:
+        print_flush(f"No database entries found for {uploader}, skipping context generation")
+        return None
+    
+    # Load existing context to build upon it
+    existing_context = load_context(uploader)
+    
+    # Prepare the database content for summarization
+    db_content = "Recent video history:\n\n"
+    for i, entry in enumerate(database[-10:], 1):  # Use last 10 entries for context
+        db_content += f"Video {i}:\n"
+        db_content += f"Date: {entry['date']}\n"
+        db_content += f"Platform: {entry['platform']}\n"
+        db_content += f"Title: {entry['title']}\n"
+        db_content += f"Description: {entry['description']}\n"
+        db_content += f"Hashtags: {', '.join(entry['hashtags'])}\n"
+        db_content += f"Transcript: {entry['transcript'][:500]}...\n"  # Limit transcript length
+        if entry.get('image_recognition'):
+            db_content += f"Image Recognition: {entry['image_recognition'][:300]}...\n"
+        db_content += "\n---\n\n"
+    
+    # Include existing context if available
+    if existing_context:
+        db_content += f"Previous context summary:\n{existing_context}\n\n---\n\n"
+    
+    # Call OpenRouter to summarize the context
+    api_key = getenv("OPENROUTER_API_KEY", required=True)
+    context_model = getenv("CONTEXT_MODEL", "openrouter/horizon-beta")
+    url = "https://openrouter.ai/api/v1/chat/completions"
+    
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "X-Title": "Ninadon",
+        "HTTP-Referer": "https://github.com/rmoriz/ninadon"
+    }
+    
+    system_prompt = "Analyze the following video history and create a concise context summary that captures the user's content themes, interests, and patterns. Focus on recurring topics, style, and audience. If a previous context summary is provided, build upon it and update it with new insights from the recent videos, maintaining continuity while incorporating new patterns or changes."
+    
+    data = {
+        "model": context_model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": db_content}
+        ]
+    }
+    
+    import sys
+    print(f"[OpenRouter CONTEXT REQUEST] URL: {url}", file=sys.stderr)
+    print(f"[OpenRouter CONTEXT REQUEST] Model: {context_model}", file=sys.stderr)
+    print(f"[OpenRouter CONTEXT REQUEST] Database entries: {len(database)}", file=sys.stderr)
+    print(f"[OpenRouter CONTEXT REQUEST] Existing context: {'Yes' if existing_context else 'No'}", file=sys.stderr)
+    
+    try:
+        resp = requests.post(url, headers=headers, json=data)
+        print(f"[OpenRouter CONTEXT RESPONSE] Status: {resp.status_code}", file=sys.stderr)
+        
+        resp.raise_for_status()
+        context_summary = resp.json()["choices"][0]["message"]["content"]
+        
+        # Save the context summary
+        context_path = get_context_path(uploader)
+        context_data = {
+            "generated_at": datetime.now().isoformat(),
+            "summary": context_summary,
+            "based_on_entries": len(database)
+        }
+        
+        with open(context_path, 'w', encoding='utf-8') as f:
+            json.dump(context_data, f, indent=2, ensure_ascii=False)
+        
+        print_flush(f"Context summary generated and saved for {uploader}")
+        return context_summary
+        
+    except requests.exceptions.HTTPError as e:
+        print_flush(f"Warning: Context generation failed: {e}")
+        return None
+    except Exception as e:
+        print_flush(f"Warning: Could not generate context: {e}")
+        return None
+
+def load_context(uploader):
+    """Load the context summary for a specific user."""
+    context_path = get_context_path(uploader)
+    if os.path.exists(context_path):
+        try:
+            with open(context_path, 'r', encoding='utf-8') as f:
+                context_data = json.load(f)
+                return context_data.get('summary', '')
+        except (json.JSONDecodeError, IOError) as e:
+            print_flush(f"Warning: Could not load context for {uploader}: {e}")
+    return None
+
+def summarize_text(transcript, description, uploader, image_analysis=None, context=None):
     system_prompt = getenv("SYSTEM_PROMPT", "Summarize the following video transcript, description, and account name:")
     api_key = getenv("OPENROUTER_API_KEY", required=True)
     url = "https://openrouter.ai/api/v1/chat/completions"
@@ -232,6 +416,10 @@ def summarize_text(transcript, description, uploader, image_analysis=None):
     # Add image analysis if available
     if image_analysis:
         user_content += f"\n\nImage Recognition:\n{image_analysis}"
+    
+    # Add context if available
+    if context:
+        user_content += f"\n\nContext:\n{context}"
     
     data = {
         "model": getenv("OPENROUTER_MODEL", "openrouter/horizon-beta"),
@@ -329,10 +517,13 @@ def main():
         import sys
         print_flush(f"Working in temp dir: {tmpdir}")
         print_flush("Starting download...")
-        video_path, description, uploader, mime_type = download_video(args.url, tmpdir)
+        video_path, title, description, uploader, hashtags, platform, mime_type = download_video(args.url, tmpdir)
         print_flush(f"Downloaded video to: {video_path}")
+        print_flush(f"Title: {title}")
         print_flush(f"Uploader: {uploader}")
+        print_flush(f"Platform: {platform}")
         print_flush(f"Description: {description}")
+        print_flush(f"Hashtags: {hashtags}")
         print_flush("Starting transcription...")
         transcript = transcribe_video(video_path)
         print_flush(f"Transcript:\n{transcript}")
@@ -349,8 +540,20 @@ def main():
                 print_flush(f"Warning: Image analysis failed: {e}")
                 print_flush("Continuing with transcript-only summarization...")
         
+        # Add current video to database
+        print_flush("Adding video to database...")
+        add_to_database(uploader, title, description, hashtags, platform, transcript, image_analysis)
+        
+        # Generate context summary from database
+        print_flush("Generating context summary...")
+        context = generate_context_summary(uploader)
+        if context:
+            print_flush(f"Context:\n{context}")
+        else:
+            print_flush("No context available")
+        
         print_flush("Starting summarization...")
-        summary = summarize_text(transcript, description, uploader, image_analysis)
+        summary = summarize_text(transcript, description, uploader, image_analysis, context)
         print_flush(f"Summary:\n{summary}")
         enable_transcoding = getenv("ENABLE_TRANSCODING", "").lower() in ("1", "true", "yes")
         if enable_transcoding:

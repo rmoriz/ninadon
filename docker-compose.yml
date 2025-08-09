@@ -1,0 +1,43 @@
+# Docker Compose configuration for ninadon
+# 
+# Usage:
+#   1. Copy .env.example to .env and fill in your API keys
+#   2. Run: docker-compose run --rm ninadon "https://www.youtube.com/watch?v=example"
+#
+version: '3.8'
+
+services:
+  ninadon:
+    image: ghcr.io/rmoriz/ninadon:latest
+    environment:
+      # Required
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      
+      # Required for posting (not needed for --dry runs)
+      - AUTH_TOKEN=${AUTH_TOKEN}
+      - MASTODON_URL=${MASTODON_URL:-https://mastodon.social}
+      
+      # Optional configuration
+      - DATA_PATH=/app/data
+      - SYSTEM_PROMPT=${SYSTEM_PROMPT}
+      - USER_PROMPT=${USER_PROMPT}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-openrouter/horizon-beta}
+      - ENHANCE_MODEL=${ENHANCE_MODEL:-google/gemini-2.5-flash-lite}
+      - CONTEXT_MODEL=${CONTEXT_MODEL:-openrouter/horizon-beta}
+      
+      # Optional transcoding settings
+      - ENABLE_TRANSCODING=${ENABLE_TRANSCODING:-false}
+      - TRANSCODE_TIMEOUT=${TRANSCODE_TIMEOUT:-600}
+      - MASTODON_MEDIA_TIMEOUT=${MASTODON_MEDIA_TIMEOUT:-600}
+    
+    volumes:
+      # Persistent storage for user databases and context files
+      - ninadon-data:/app/data
+    
+    # Default command (override when running)
+    command: ["--help"]
+
+volumes:
+  # Named volume for persistent data storage
+  ninadon-data:
+    driver: local

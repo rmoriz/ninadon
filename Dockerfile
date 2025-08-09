@@ -9,6 +9,9 @@ ENV HOME=/app
 ENV HF_HOME=/app/.cache
 ENV TRANSFORMERS_CACHE=/app/.cache
 
+# Create data directory for persistent storage
+RUN mkdir -p /app/data
+
 # Create a non-root user and group with /app as home
 RUN groupadd -r appuser && useradd -m -d /app -r -g appuser appuser
 RUN chown -R appuser:appuser /app
