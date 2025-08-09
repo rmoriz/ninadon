@@ -292,9 +292,28 @@ ninadon() {
   mkdir -p "$data_dir"
   
   docker run --pull=always --rm \
-    -e SYSTEM_PROMPT='Verfasse für das Video einen Social-Media-Post für Mastodon auf Deutsch (Hinweis: maximal 350 Zeichen + 0–3 Hashtags, keine Zeichenangabe etc. notwendig. Ausgabe soll direkt für social media geeignet sein, KEINE Meta-Angaben (Länge, Tonalität etc) über den Text. Einfach nur den Text aussgeben). Text darf schon witzig und aktivierend sein, nicht immer alles verrachten, leute sollen durchaus neugierig gemacht werden. Beachte den Context, sofern er brauchbare Indizien liefert. Die Transkription wird sicherlich Fehler enthalten, also bitte korrigiere offensichtliche Falschbeschreibungen und Rechtschreibfehler, bevor du den Text zurücklieferst. Vielleicht steht im Context das richtige Wort/Begriff/Name. Versuche aus dem Context herauszufinden, um welche Veranstaltung/Event es sich handelt oder wo ein Bezug bestehen könnte. Möglicherweise gibt es einen Zusammenhang zu den letzten Videos, die im Context beschrieben sind? Verwende mögliche Hashtags des Videos.' \
-    -e IMAGE_ANALYSIS_PROMPT="Beschreibe, was du in diesen Videoframes siehst, und erkläre die mögliche visuelle Handlung bzw. den Zusammenhang." \
-    -e CONTEXT_PROMPT="Erstelle einen Context aus den folgenden Daten. Es handelt sich um diverse social media Videos eines Users in zeitlicher Reihenfolge. Erzeuge eine ausgewogene Zusammenfassung und versuche möglichst, Rechtschreibfehler und Ergebnisse falscher Sprach- und Bilderkennung heuristisch zu korrigieren oder zu ignorieren. Achte auf die Schreibweisen von Namen, Orten, Dingen." \
+    -e SYSTEM_PROMPT='Verfasse für das Video einen Social-Media-Post für '\
+'Mastodon auf Deutsch (Hinweis: maximal 350 Zeichen + 0–3 Hashtags, keine '\
+'Zeichenangabe etc. notwendig. Ausgabe soll direkt für social media '\
+'geeignet sein, KEINE Meta-Angaben (Länge, Tonalität etc) über den Text. '\
+'Einfach nur den Text aussgeben). Text darf schon witzig und aktivierend '\
+'sein, nicht immer alles verrachten, leute sollen durchaus neugierig '\
+'gemacht werden. Beachte den Context, sofern er brauchbare Indizien '\
+'liefert. Die Transkription wird sicherlich Fehler enthalten, also bitte '\
+'korrigiere offensichtliche Falschbeschreibungen und Rechtschreibfehler, '\
+'bevor du den Text zurücklieferst. Vielleicht steht im Context das '\
+'richtige Wort/Begriff/Name. Versuche aus dem Context herauszufinden, um '\
+'welche Veranstaltung/Event es sich handelt oder wo ein Bezug bestehen '\
+'könnte. Möglicherweise gibt es einen Zusammenhang zu den letzten Videos, '\
+'die im Context beschrieben sind? Verwende mögliche Hashtags des Videos.' \
+    -e IMAGE_ANALYSIS_PROMPT="Beschreibe, was du in diesen Videoframes "\
+"siehst, und erkläre die mögliche visuelle Handlung bzw. den Zusammenhang." \
+    -e CONTEXT_PROMPT="Erstelle einen Context aus den folgenden Daten. Es "\
+"handelt sich um diverse social media Videos eines Users in zeitlicher "\
+"Reihenfolge. Erzeuge eine ausgewogene Zusammenfassung und versuche "\
+"möglichst, Rechtschreibfehler und Ergebnisse falscher Sprach- und "\
+"Bilderkennung heuristisch zu korrigieren oder zu ignorieren. Achte auf "\
+"die Schreibweisen von Namen, Orten, Dingen." \
     -e AUTH_TOKEN="${MASTODON_AUTH_TOKEN:?Setze MASTODON_AUTH_TOKEN}" \
     -e OPENROUTER_API_KEY \
     -e OPENROUTER_MODEL \
@@ -337,20 +356,22 @@ seed_ninadon() {
     fi
   fi
 
-  # yt-dlp: get first N entries and output their webpage URLs (platform-robust)
+  # yt-dlp: get first N entries and output their webpage URLs
   # -I 1:COUNT = only items 1..COUNT
   # %(webpage_url)s = the "normal" link to the clip (not the file URL)
   # --ignore-errors/--no-warnings: more robust against individual failures
-  yt-dlp --ignore-errors --no-warnings -I "1:${count}" --print "%(webpage_url)s" "$profile_url" \
+  yt-dlp --ignore-errors --no-warnings -I "1:${count}" \
+    --print "%(webpage_url)s" "$profile_url" \
     | eval "$REVERSE" \
     | while IFS= read -r url; do
-        # Optional: only process real video pages (some simple heuristics)
+        # Optional: only process real video pages (some heuristics)
         case "$url" in
-          *tiktok.com/*/video/*|*instagram.com/p/*|*instagram.com/reel/*|*youtube.com/watch*\?v=*|*youtube.com/shorts/*|*youtu.be/*)
+          *tiktok.com/*/video/*|*instagram.com/p/*|*instagram.com/reel/*|\
+*youtube.com/watch*\?v=*|*youtube.com/shorts/*|*youtu.be/*)
             dry_ninadon "$url"
             ;;
           *)
-            # for platforms/variants that don't match patterns, still execute:
+            # for platforms/variants that don't match patterns, execute:
             dry_ninadon "$url"
             ;;
         esac
