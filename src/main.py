@@ -11,6 +11,8 @@ import subprocess
 from mastodon import Mastodon
 import time
 import mimetypes
+import base64
+import json
 
 def run_ydl(url, ydl_opts, download):
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -102,13 +104,117 @@ def transcribe_video(video_path):
     result = model.transcribe(video_path)
     return result["text"]
 
+def get_video_duration(video_path):
+    """Get video duration in seconds using ffprobe."""
+    cmd = [
+        "ffprobe", "-v", "quiet", "-show_entries", "format=duration",
+        "-of", "csv=p=0", video_path
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    return float(result.stdout.strip())
+
+def extract_still_images(video_path, tmpdir):
+    """Extract 5 still images from video: beginning, end, and 3 equally spaced."""
+    duration = get_video_duration(video_path)
+    
+    # Calculate timestamps: beginning (0.5s), end (duration-0.5s), and 3 equally spaced
+    timestamps = [
+        0.5,  # Beginning
+        duration * 0.25,  # 25%
+        duration * 0.5,   # 50%
+        duration * 0.75,  # 75%
+        max(duration - 0.5, 0.5)  # End (but not before 0.5s)
+    ]
+    
+    image_paths = []
+    for i, timestamp in enumerate(timestamps):
+        image_path = os.path.join(tmpdir, f"frame_{i:02d}.jpg")
+        cmd = [
+            "ffmpeg", "-ss", str(timestamp), "-i", video_path,
+            "-vframes", "1", "-q:v", "5", "-y", image_path
+        ]
+        subprocess.run(cmd, check=True, capture_output=True)
+        image_paths.append(image_path)
+        print_flush(f"Extracted frame at {timestamp:.1f}s: {image_path}")
+    
+    return image_paths
+
+def encode_image_to_base64(image_path):
+    """Encode image to base64 for API transmission."""
+    with open(image_path, "rb") as image_file:
+        return base64.b64encode(image_file.read()).decode('utf-8')
+
+def analyze_images_with_openrouter(image_paths):
+    """Analyze images using OpenRouter with Gemini model."""
+    api_key = getenv("OPENROUTER_API_KEY", required=True)
+    model = getenv("ENHANCE_MODEL", "google/gemini-2.5-flash-lite")
+    url = "https://openrouter.ai/api/v1/chat/completions"
+    
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "X-Title": "Ninadon",
+        "HTTP-Referer": "https://github.com/rmoriz/ninadon"
+    }
+    
+    # Prepare image content for the API
+    content = [
+        {
+            "type": "text",
+            "text": "Analyze these photos from a tiktok clip, make a connection between the photos"
+        }
+    ]
+    
+    for image_path in image_paths:
+        base64_image = encode_image_to_base64(image_path)
+        content.append({
+            "type": "image_url",
+            "image_url": {
+                "url": f"data:image/jpeg;base64,{base64_image}"
+            }
+        })
+    
+    data = {
+        "model": model,
+        "messages": [
+            {
+                "role": "user",
+                "content": content
+            }
+        ]
+    }
+    
+    import sys
+    # Log OpenRouter request (hide API key)
+    log_headers = dict(headers)
+    if 'Authorization' in log_headers:
+        log_headers['Authorization'] = 'Bearer ***REDACTED***'
+    print(f"[OpenRouter IMAGE REQUEST] URL: {url}", file=sys.stderr)
+    print(f"[OpenRouter IMAGE REQUEST] Headers: {log_headers}", file=sys.stderr)
+    print(f"[OpenRouter IMAGE REQUEST] Model: {model}", file=sys.stderr)
+    print(f"[OpenRouter IMAGE REQUEST] Images: {len(image_paths)}", file=sys.stderr)
+    
+    resp = requests.post(url, headers=headers, json=data)
+    print(f"[OpenRouter IMAGE RESPONSE] Status: {resp.status_code}", file=sys.stderr)
+    print(f"[OpenRouter IMAGE RESPONSE] Body: {resp.text}", file=sys.stderr)
+    
+    try:
+        resp.raise_for_status()
+    except requests.exceptions.HTTPError as e:
+        if resp.status_code == 404:
+            print_flush("ERROR: 404 Not Found from OpenRouter API for image analysis. This may mean the model name is invalid or unavailable. Please check the ENHANCE_MODEL environment variable.")
+        raise
+    
+    analysis = resp.json()["choices"][0]["message"]["content"]
+    return analysis
+
 def getenv(key, default=None, required=False):
     val = os.environ.get(key, default)
     if required and not val:
         raise RuntimeError(f"{key} environment variable not set")
     return val
 
-def summarize_text(transcript, description, uploader):
+def summarize_text(transcript, description, uploader, image_analysis=None):
     system_prompt = getenv("SYSTEM_PROMPT", "Summarize the following video transcript, description, and account name:")
     api_key = getenv("OPENROUTER_API_KEY", required=True)
     url = "https://openrouter.ai/api/v1/chat/completions"
@@ -120,7 +226,13 @@ def summarize_text(transcript, description, uploader):
     }
     user_prompt = getenv("USER_PROMPT", "")
     merged_transcript = f"{user_prompt}\n\n{transcript}" if user_prompt else transcript
+    
     user_content = f"Account name: {uploader}\nDescription: {description}\nTranscript:\n{merged_transcript}"
+    
+    # Add image analysis if available
+    if image_analysis:
+        user_content += f"\n\nImage Recognition:\n{image_analysis}"
+    
     data = {
         "model": getenv("OPENROUTER_MODEL", "openrouter/horizon-beta"),
         "messages": [
@@ -211,6 +323,7 @@ def main():
     parser = argparse.ArgumentParser(description="Download, transcribe, summarize, and post video.")
     parser.add_argument('url', help='Video URL (YouTube, Instagram, TikTok)')
     parser.add_argument('--dry', action='store_true', help='Perform dry run without posting to Mastodon')
+    parser.add_argument('--enhance', action='store_true', help='Extract still images and analyze them for enhanced summarization')
     args = parser.parse_args()
     with tempfile.TemporaryDirectory() as tmpdir:
         import sys
@@ -223,8 +336,21 @@ def main():
         print_flush("Starting transcription...")
         transcript = transcribe_video(video_path)
         print_flush(f"Transcript:\n{transcript}")
+        
+        # Handle image analysis if --enhance flag is used
+        image_analysis = None
+        if args.enhance:
+            print_flush("Starting image extraction and analysis...")
+            try:
+                image_paths = extract_still_images(video_path, tmpdir)
+                image_analysis = analyze_images_with_openrouter(image_paths)
+                print_flush(f"Image Analysis:\n{image_analysis}")
+            except Exception as e:
+                print_flush(f"Warning: Image analysis failed: {e}")
+                print_flush("Continuing with transcript-only summarization...")
+        
         print_flush("Starting summarization...")
-        summary = summarize_text(transcript, description, uploader)
+        summary = summarize_text(transcript, description, uploader, image_analysis)
         print_flush(f"Summary:\n{summary}")
         enable_transcoding = getenv("ENABLE_TRANSCODING", "").lower() in ("1", "true", "yes")
         if enable_transcoding:

@@ -87,7 +87,7 @@ def test_main_flow(monkeypatch, tmp_path):
     # Patch all major functions to simulate main() flow
     monkeypatch.setattr(main, "download_video", lambda url, tmpdir: (str(tmp_path / "video.mp4"), "desc", "uploader", "video/mp4"))
     monkeypatch.setattr(main, "transcribe_video", lambda path: "transcript")
-    monkeypatch.setattr(main, "summarize_text", lambda t, d, u: "summary")
+    monkeypatch.setattr(main, "summarize_text", lambda t, d, u, i=None: "summary")
     monkeypatch.setattr(main, "maybe_reencode", lambda path, tmpdir: path)
     monkeypatch.setattr(main, "post_to_mastodon", lambda s, v, u, m: "http://mastodon/post")
     # Simulate CLI args
@@ -102,7 +102,7 @@ def test_main_flow_dry_run(monkeypatch, tmp_path):
     # Patch all major functions to simulate main() flow with dry run
     monkeypatch.setattr(main, "download_video", lambda url, tmpdir: (str(tmp_path / "video.mp4"), "desc", "uploader", "video/mp4"))
     monkeypatch.setattr(main, "transcribe_video", lambda path: "transcript")
-    monkeypatch.setattr(main, "summarize_text", lambda t, d, u: "summary")
+    monkeypatch.setattr(main, "summarize_text", lambda t, d, u, i=None: "summary")
     monkeypatch.setattr(main, "maybe_reencode", lambda path, tmpdir: path)
     
     # Mock post_to_mastodon to ensure it's NOT called during dry run
@@ -119,6 +119,81 @@ def test_main_flow_dry_run(monkeypatch, tmp_path):
     sys.argv = ["main.py", "--dry", "http://test"]
     try:
         main.main()
+        # Verify that post_to_mastodon was NOT called
+        assert not post_to_mastodon_called, "post_to_mastodon should not be called during dry run"
+    finally:
+        sys.argv = sys_argv
+
+def test_enhance_functionality(monkeypatch, tmp_path):
+    # Test the --enhance flag functionality
+    monkeypatch.setattr(main, "download_video", lambda url, tmpdir: (str(tmp_path / "video.mp4"), "desc", "uploader", "video/mp4"))
+    monkeypatch.setattr(main, "transcribe_video", lambda path: "transcript")
+    
+    # Mock image extraction and analysis
+    monkeypatch.setattr(main, "extract_still_images", lambda video_path, tmpdir: ["img1.jpg", "img2.jpg"])
+    monkeypatch.setattr(main, "analyze_images_with_openrouter", lambda images: "image analysis result")
+    
+    # Track if summarize_text is called with image analysis
+    summarize_calls = []
+    def mock_summarize_text(transcript, description, uploader, image_analysis=None):
+        summarize_calls.append((transcript, description, uploader, image_analysis))
+        return "enhanced summary"
+    
+    monkeypatch.setattr(main, "summarize_text", mock_summarize_text)
+    monkeypatch.setattr(main, "maybe_reencode", lambda path, tmpdir: path)
+    monkeypatch.setattr(main, "post_to_mastodon", lambda s, v, u, m: "http://mastodon/post")
+    
+    # Simulate CLI args with --enhance flag
+    sys_argv = sys.argv
+    sys.argv = ["main.py", "--enhance", "http://test"]
+    try:
+        main.main()
+        # Verify that summarize_text was called with image analysis
+        assert len(summarize_calls) == 1
+        transcript, description, uploader, image_analysis = summarize_calls[0]
+        assert transcript == "transcript"
+        assert description == "desc"
+        assert uploader == "uploader"
+        assert image_analysis == "image analysis result"
+    finally:
+        sys.argv = sys_argv
+
+def test_enhance_with_dry_run(monkeypatch, tmp_path):
+    # Test the --enhance flag with --dry run
+    monkeypatch.setattr(main, "download_video", lambda url, tmpdir: (str(tmp_path / "video.mp4"), "desc", "uploader", "video/mp4"))
+    monkeypatch.setattr(main, "transcribe_video", lambda path: "transcript")
+    
+    # Mock image extraction and analysis
+    monkeypatch.setattr(main, "extract_still_images", lambda video_path, tmpdir: ["img1.jpg", "img2.jpg"])
+    monkeypatch.setattr(main, "analyze_images_with_openrouter", lambda images: "image analysis result")
+    
+    # Track if summarize_text is called with image analysis
+    summarize_calls = []
+    def mock_summarize_text(transcript, description, uploader, image_analysis=None):
+        summarize_calls.append((transcript, description, uploader, image_analysis))
+        return "enhanced summary"
+    
+    monkeypatch.setattr(main, "summarize_text", mock_summarize_text)
+    monkeypatch.setattr(main, "maybe_reencode", lambda path, tmpdir: path)
+    
+    # Mock post_to_mastodon to ensure it's NOT called during dry run
+    post_to_mastodon_called = False
+    def mock_post_to_mastodon(*args, **kwargs):
+        nonlocal post_to_mastodon_called
+        post_to_mastodon_called = True
+        return "http://mastodon/post"
+    
+    monkeypatch.setattr(main, "post_to_mastodon", mock_post_to_mastodon)
+    
+    # Simulate CLI args with both --dry and --enhance flags
+    sys_argv = sys.argv
+    sys.argv = ["main.py", "--dry", "--enhance", "http://test"]
+    try:
+        main.main()
+        # Verify that summarize_text was called with image analysis
+        assert len(summarize_calls) == 1
+        transcript, description, uploader, image_analysis = summarize_calls[0]
+        assert image_analysis == "image analysis result"
         # Verify that post_to_mastodon was NOT called
         assert not post_to_mastodon_called, "post_to_mastodon should not be called during dry run"
     finally:

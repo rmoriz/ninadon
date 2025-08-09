@@ -68,6 +68,7 @@ Set these variables before running:
 - `ENABLE_TRANSCODING` — (optional) If set to `1`, `true`, or `yes` (case-insensitive), enables video transcoding to H.265 for files >25MB. Default: transcoding is disabled and the original video is used.
 - `TRANSCODE_TIMEOUT` — (optional) Timeout in seconds for ffmpeg transcoding. Default: `600`.
 - `MASTODON_MEDIA_TIMEOUT` — (optional) Timeout in seconds to wait for Mastodon to process uploaded media. Default: `600`.
+- `ENHANCE_MODEL` — (optional) Model name for OpenRouter image analysis when using `--enhance` flag. Defaults to `google/gemini-2.5-flash-lite`.
 
 ## Usage
 
@@ -86,6 +87,20 @@ python src/main.py --dry "https://www.youtube.com/watch?v=example"
 ```
 
 This will download, transcribe, and summarize the video, but skip the actual Mastodon post.
+
+#### Enhanced Analysis
+
+To enable image analysis for enhanced summarization, use the `--enhance` flag:
+
+```sh
+python src/main.py --enhance "https://www.youtube.com/watch?v=example"
+```
+
+This will extract 5 still images from the video (beginning, end, and 3 equally spaced frames), analyze them using OpenRouter's vision model, and include the image analysis in the summarization process. You can combine this with `--dry` for testing:
+
+```sh
+python src/main.py --dry --enhance "https://www.youtube.com/watch?v=example"
+```
 
 ### Docker
 
@@ -117,6 +132,28 @@ For dry run with Docker (note: AUTH_TOKEN and MASTODON_URL are not required for 
 docker run --rm \
   -e OPENROUTER_API_KEY=your_openrouter_key \
   ghcr.io/rmoriz/ninadon:latest --dry "https://www.youtube.com/watch?v=example"
+```
+
+#### Docker with Enhanced Analysis
+
+To use the `--enhance` flag with Docker:
+
+```sh
+docker run --rm \
+  -e OPENROUTER_API_KEY=your_openrouter_key \
+  -e AUTH_TOKEN=your_mastodon_token \
+  -e MASTODON_URL=https://mastodon.social \
+  -e ENHANCE_MODEL=google/gemini-2.5-flash-lite \
+  ghcr.io/rmoriz/ninadon:latest --enhance "https://www.youtube.com/watch?v=example"
+```
+
+Or combine with dry run:
+
+```sh
+docker run --rm \
+  -e OPENROUTER_API_KEY=your_openrouter_key \
+  -e ENHANCE_MODEL=google/gemini-2.5-flash-lite \
+  ghcr.io/rmoriz/ninadon:latest --dry --enhance "https://www.youtube.com/watch?v=example"
 ```
 
 ## Example Output
