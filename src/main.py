@@ -124,6 +124,85 @@ def transcribe_video(video_path):
     result = model.transcribe(video_path)
     return result["text"]
 
+def extract_transcript_from_platform(url, tmpdir):
+    """
+    Try to extract transcript/subtitles from the platform using yt-dlp.
+    Returns the transcript text if available, None otherwise.
+    """
+    print_flush("Checking for platform-provided transcripts...")
+    
+    # Configure yt-dlp to extract subtitles
+    subtitle_dir = os.path.join(tmpdir, 'subtitles')
+    os.makedirs(subtitle_dir, exist_ok=True)
+    
+    ydl_opts = {
+        'writesubtitles': True,           # Extract manual subtitles
+        'writeautomaticsub': True,       # Extract automatic captions
+        'skip_download': True,           # Don't download video, just subtitles
+        'subtitleslangs': ['en', 'en-US', 'en-GB'],  # Prefer English
+        'outtmpl': os.path.join(subtitle_dir, '%(title)s.%(ext)s'),
+        'quiet': True,
+    }
+    
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            
+            # Check if subtitles were downloaded
+            if info and ('subtitles' in info or 'automatic_captions' in info):
+                # Look for downloaded subtitle files
+                for file in os.listdir(subtitle_dir):
+                    if file.endswith(('.vtt', '.srt', '.ass', '.ttml')):
+                        subtitle_path = os.path.join(subtitle_dir, file)
+                        print_flush(f"Found platform transcript: {subtitle_path}")
+                        
+                        # Read and parse the subtitle file
+                        transcript = parse_subtitle_file(subtitle_path)
+                        if transcript.strip():
+                            print_flush("Successfully extracted transcript from platform")
+                            return transcript
+                        
+            print_flush("No platform transcripts found or extracted")
+            return None
+            
+    except Exception as e:
+        print_flush(f"Failed to extract platform transcript: {e}")
+        return None
+
+def parse_subtitle_file(subtitle_path):
+    """
+    Parse a subtitle file and extract the text content.
+    Supports VTT, SRT, and other common subtitle formats.
+    """
+    try:
+        with open(subtitle_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # Remove WebVTT headers and timing information
+        lines = content.split('\n')
+        text_lines = []
+        
+        for line in lines:
+            line = line.strip()
+            # Skip empty lines, timing lines, and WebVTT/SRT formatting
+            if (line and 
+                not line.startswith('WEBVTT') and
+                not line.startswith('NOTE') and
+                not '-->' in line and
+                not line.isdigit() and
+                not line.startswith('STYLE') and
+                not line.startswith('::cue')):
+                # Remove any remaining HTML/XML tags
+                clean_line = re.sub(r'<[^>]+>', '', line)
+                if clean_line.strip():
+                    text_lines.append(clean_line.strip())
+        
+        return ' '.join(text_lines)
+        
+    except Exception as e:
+        print_flush(f"Error parsing subtitle file {subtitle_path}: {e}")
+        return ""
+
 def get_video_duration(video_path):
     """Get video duration in seconds using ffprobe."""
     cmd = [
@@ -541,8 +620,17 @@ def main():
         print_flush(f"Platform: {platform}")
         print_flush(f"Description: {description}")
         print_flush(f"Hashtags: {hashtags}")
+        
+        # Try to get transcript from platform first, fallback to whisper
         print_flush("Starting transcription...")
-        transcript = transcribe_video(video_path)
+        transcript = extract_transcript_from_platform(args.url, tmpdir)
+        
+        if transcript:
+            print_flush("Using platform-provided transcript")
+        else:
+            print_flush("No platform transcript available, using whisper...")
+            transcript = transcribe_video(video_path)
+        
         print_flush(f"Transcript:\n{transcript}")
         
         # Handle image analysis if --enhance flag is used

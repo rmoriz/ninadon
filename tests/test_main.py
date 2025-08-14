@@ -497,3 +497,109 @@ def test_configurable_context_prompt(tmp_path, monkeypatch):
     assert system_message["role"] == "system"
     assert system_message["content"] == custom_context_prompt
     assert result == "Custom context summary"
+
+def test_parse_subtitle_file(tmp_path):
+    # Test parsing of different subtitle formats
+    
+    # Test VTT format
+    vtt_content = """WEBVTT
+
+00:00:00.000 --> 00:00:03.000
+Hello world, this is a test transcript.
+
+00:00:03.000 --> 00:00:06.000
+This is the second line of text.
+
+00:00:06.000 --> 00:00:10.000
+<v Speaker>And this has HTML tags to remove.</v>
+"""
+    vtt_file = tmp_path / "test.vtt"
+    vtt_file.write_text(vtt_content, encoding='utf-8')
+    
+    result = main.parse_subtitle_file(str(vtt_file))
+    expected = "Hello world, this is a test transcript. This is the second line of text. And this has HTML tags to remove."
+    assert result == expected
+    
+    # Test SRT format
+    srt_content = """1
+00:00:00,000 --> 00:00:03,000
+Hello world, this is SRT format.
+
+2
+00:00:03,000 --> 00:00:06,000
+Second subtitle entry.
+
+3
+00:00:06,000 --> 00:00:10,000
+<i>Italic text should be cleaned</i>
+"""
+    srt_file = tmp_path / "test.srt"
+    srt_file.write_text(srt_content, encoding='utf-8')
+    
+    result = main.parse_subtitle_file(str(srt_file))
+    expected = "Hello world, this is SRT format. Second subtitle entry. Italic text should be cleaned"
+    assert result == expected
+
+def test_extract_transcript_from_platform(tmp_path, monkeypatch):
+    # Test platform transcript extraction with mock
+    
+    # Mock yt-dlp to simulate subtitle extraction
+    class MockYoutubeDL:
+        def __init__(self, opts):
+            self.opts = opts
+            
+        def __enter__(self):
+            return self
+            
+        def __exit__(self, *args):
+            pass
+            
+        def extract_info(self, url, download=True):
+            # Simulate creating subtitle files when download=True
+            if download and self.opts.get('writesubtitles'):
+                subtitle_dir = os.path.dirname(self.opts['outtmpl']).replace('/%(title)s.%(ext)s', '')
+                os.makedirs(subtitle_dir, exist_ok=True)
+                
+                # Create a mock subtitle file
+                subtitle_file = os.path.join(subtitle_dir, "test_video.en.vtt")
+                with open(subtitle_file, 'w', encoding='utf-8') as f:
+                    f.write("""WEBVTT
+
+00:00:00.000 --> 00:00:03.000
+This is a platform-provided transcript.
+
+00:00:03.000 --> 00:00:06.000
+It should be preferred over whisper.
+""")
+            
+            return {
+                'title': 'Test Video',
+                'subtitles': {'en': [{'url': 'fake_url'}]},
+                'automatic_captions': {}
+            }
+    
+    monkeypatch.setattr(main.yt_dlp, "YoutubeDL", MockYoutubeDL)
+    
+    # Test successful platform transcript extraction
+    result = main.extract_transcript_from_platform("https://youtube.com/test", str(tmp_path))
+    expected = "This is a platform-provided transcript. It should be preferred over whisper."
+    assert result == expected
+    
+    # Test when no subtitles are available
+    class MockYoutubeDLNoSubs:
+        def __init__(self, opts):
+            self.opts = opts
+            
+        def __enter__(self):
+            return self
+            
+        def __exit__(self, *args):
+            pass
+            
+        def extract_info(self, url, download=True):
+            return {'title': 'Test Video'}  # No subtitles or automatic_captions
+    
+    monkeypatch.setattr(main.yt_dlp, "YoutubeDL", MockYoutubeDLNoSubs)
+    
+    result = main.extract_transcript_from_platform("https://youtube.com/test", str(tmp_path))
+    assert result is None
