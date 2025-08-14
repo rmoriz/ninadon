@@ -4,7 +4,7 @@
 
 # ninadon
 
-Automate the workflow of downloading a video (YouTube, Instagram, TikTok), transcribing it with OpenAI Whisper, summarizing with OpenRouter AI, optionally re-encoding to H.265, and posting the summary and video to Mastodon.
+Automate the workflow of downloading a video (YouTube, Instagram, TikTok), transcribing it using platform transcripts or OpenAI Whisper, summarizing with OpenRouter AI, optionally re-encoding to H.265, and posting the summary and video to Mastodon.
 
 ---
 
@@ -19,7 +19,7 @@ Automate the workflow of downloading a video (YouTube, Instagram, TikTok), trans
 ## Features
 
 - Download videos from YouTube, Instagram, TikTok (via yt-dlp)
-- Transcribe audio using OpenAI Whisper
+- Smart transcription: Uses platform-provided transcripts when available, falls back to OpenAI Whisper
 - Summarize transcript with OpenRouter AI
 - Optionally re-encode videos >25MB to H.265 (ffmpeg)
 - Post summary and video to Mastodon
