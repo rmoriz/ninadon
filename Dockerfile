@@ -6,8 +6,6 @@ RUN apt-get update && apt-get install -y ffmpeg procps && rm -rf /var/lib/apt/li
 # Set workdir and home
 WORKDIR /app
 ENV HOME=/app
-ENV HF_HOME=/app/.cache
-ENV TRANSFORMERS_CACHE=/app/.cache
 
 # Create data directory for persistent storage
 RUN mkdir -p /app/data
@@ -20,13 +18,7 @@ RUN chown -R appuser:appuser /app
 USER appuser
 ENV PATH="/app/.local/bin:${PATH}"
 
-# Install Whisper and pre-download model as appuser
-COPY requirements.txt ./requirements.whisper.txt
-RUN grep openai-whisper requirements.whisper.txt > whisper-only.txt
-RUN pip install --no-cache-dir -r whisper-only.txt
-RUN python -c "import whisper; whisper.load_model('base')"
-
-# Install all other dependencies and app code as appuser
+# Install dependencies and app code as appuser
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 COPY src/ ./src/

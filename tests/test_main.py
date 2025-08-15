@@ -42,10 +42,10 @@ def test_summarize_text(monkeypatch):
     assert result == "summary"
 
 def test_transcribe_video(monkeypatch, fake_video_path):
-    # Mock whisper.load_model and model.transcribe
+    # Mock get_whisper_model instead of whisper.load_model
     fake_model = MagicMock()
     fake_model.transcribe.return_value = {"text": "transcribed"}
-    monkeypatch.setattr(main.whisper, "load_model", lambda _: fake_model)
+    monkeypatch.setattr(main, "get_whisper_model", lambda _: fake_model)
     result = main.transcribe_video(fake_video_path)
     assert result == "transcribed"
 
@@ -603,3 +603,60 @@ It should be preferred over whisper.
     
     result = main.extract_transcript_from_platform("https://youtube.com/test", str(tmp_path))
     assert result is None
+
+def test_download_whisper_model_cli(monkeypatch, tmp_path):
+    # Test the --download-whisper-model CLI command
+    fake_model = MagicMock()
+    monkeypatch.setattr(main, "download_whisper_model", lambda model_name: fake_model)
+    
+    # Simulate CLI args with --download-whisper-model flag
+    sys_argv = sys.argv
+    sys.argv = ["main.py", "--download-whisper-model", "small"]
+    try:
+        main.main()
+    finally:
+        sys.argv = sys_argv
+
+def test_download_whisper_model_cli_default(monkeypatch, tmp_path):
+    # Test the --download-whisper-model CLI command with default model
+    fake_model = MagicMock()
+    download_calls = []
+    def mock_download(model_name):
+        download_calls.append(model_name)
+        return fake_model
+    
+    monkeypatch.setattr(main, "download_whisper_model", mock_download)
+    
+    # Simulate CLI args with --download-whisper-model flag (no model specified)
+    sys_argv = sys.argv
+    sys.argv = ["main.py", "--download-whisper-model"]
+    try:
+        main.main()
+        # Verify default model was used
+        assert len(download_calls) == 1
+        assert download_calls[0] == "base"
+    finally:
+        sys.argv = sys_argv
+
+def test_download_whisper_model_requires_url_without_flag(monkeypatch, tmp_path):
+    # Test that URL is required when not using --download-whisper-model
+    sys_argv = sys.argv
+    sys.argv = ["main.py"]  # No URL and no --download-whisper-model
+    try:
+        with pytest.raises(SystemExit):  # argparse calls sys.exit when required args are missing
+            main.main()
+    finally:
+        sys.argv = sys_argv
+
+def test_get_whisper_model_directory_default():
+    # Test default whisper model directory
+    expected = os.path.expanduser("~/.ninadon/whisper")
+    result = str(main.get_whisper_model_directory())
+    assert result == expected
+
+def test_get_whisper_model_directory_custom(monkeypatch):
+    # Test custom whisper model directory from environment
+    custom_dir = "/custom/whisper/path"
+    monkeypatch.setenv("WHISPER_MODEL_DIRECTORY", custom_dir)
+    result = str(main.get_whisper_model_directory())
+    assert result == custom_dir

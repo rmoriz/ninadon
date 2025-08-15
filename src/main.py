@@ -15,6 +15,74 @@ import base64
 import json
 from datetime import datetime
 import re
+from pathlib import Path
+
+def print_flush(*args, **kwargs):
+    import builtins
+    builtins.print(*args, **kwargs)
+    import sys; sys.stdout.flush()
+
+def get_whisper_model_directory():
+    """Get the Whisper model directory from environment variable or default."""
+    default_dir = os.path.expanduser("~/.ninadon/whisper")
+    model_dir = os.environ.get("WHISPER_MODEL_DIRECTORY", default_dir)
+    return Path(model_dir)
+
+def download_whisper_model(model_name="base"):
+    """Download and cache a Whisper model to the specified directory."""
+    model_dir = get_whisper_model_directory()
+    model_dir.mkdir(parents=True, exist_ok=True)
+    
+    print_flush(f"Downloading Whisper model '{model_name}' to {model_dir}")
+    
+    # Set the cache directory for whisper
+    cache_dir = model_dir / ".cache"
+    cache_dir.mkdir(exist_ok=True)
+    
+    # Temporarily set environment variables for whisper to use our cache
+    original_cache = os.environ.get('XDG_CACHE_HOME')
+    os.environ['XDG_CACHE_HOME'] = str(cache_dir)
+    
+    try:
+        # Load the model, which will download it to our cache directory
+        model = whisper.load_model(model_name, download_root=str(model_dir))
+        print_flush(f"Successfully downloaded and cached Whisper model '{model_name}'")
+        return model
+    except Exception as e:
+        print_flush(f"Error downloading Whisper model '{model_name}': {e}")
+        raise
+    finally:
+        # Restore original environment
+        if original_cache:
+            os.environ['XDG_CACHE_HOME'] = original_cache
+        elif 'XDG_CACHE_HOME' in os.environ:
+            del os.environ['XDG_CACHE_HOME']
+
+def get_whisper_model(model_name="base"):
+    """Get a Whisper model, downloading it if not already cached."""
+    model_dir = get_whisper_model_directory()
+    
+    # Check if model is already downloaded
+    try:
+        # Try to load from our cache directory
+        cache_dir = model_dir / ".cache"
+        original_cache = os.environ.get('XDG_CACHE_HOME')
+        os.environ['XDG_CACHE_HOME'] = str(cache_dir)
+        
+        model = whisper.load_model(model_name, download_root=str(model_dir))
+        print_flush(f"Loaded cached Whisper model '{model_name}' from {model_dir}")
+        
+        # Restore original environment
+        if original_cache:
+            os.environ['XDG_CACHE_HOME'] = original_cache
+        elif 'XDG_CACHE_HOME' in os.environ:
+            del os.environ['XDG_CACHE_HOME']
+            
+        return model
+    except Exception:
+        # Model not found or corrupted, download it
+        print_flush(f"Whisper model '{model_name}' not found in cache, downloading...")
+        return download_whisper_model(model_name)
 
 def run_ydl(url, ydl_opts, download):
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -120,7 +188,8 @@ def download_video(url, tmpdir):
     return filepath, title, description, uploader, hashtags, platform, mime_type
 
 def transcribe_video(video_path):
-    model = whisper.load_model("base")
+    default_model = os.environ.get("WHISPER_MODEL", "base")
+    model = get_whisper_model(default_model)
     result = model.transcribe(video_path)
     return result["text"]
 
@@ -571,11 +640,6 @@ def wait_for_media_processing(mastodon, media_id, timeout=None, poll_interval=2)
                f"Consider increasing the MASTODON_MEDIA_TIMEOUT environment variable or checking your Mastodon instance's limits.")
     raise RuntimeError(f"Media processing timed out for media_id={media_id}")
 
-def print_flush(*args, **kwargs):
-    import builtins
-    builtins.print(*args, **kwargs)
-    import sys; sys.stdout.flush()
-
 def post_to_mastodon(summary, video_path, source_url, mime_type=None):
     size_bytes = os.path.getsize(video_path)
     size_mb = size_bytes / (1024 * 1024)
@@ -605,10 +669,27 @@ def post_to_mastodon(summary, video_path, source_url, mime_type=None):
 
 def main():
     parser = argparse.ArgumentParser(description="Download, transcribe, summarize, and post video.")
-    parser.add_argument('url', help='Video URL (YouTube, Instagram, TikTok)')
+    parser.add_argument('url', nargs='?', help='Video URL (YouTube, Instagram, TikTok)')
     parser.add_argument('--dry', action='store_true', help='Perform dry run without posting to Mastodon')
     parser.add_argument('--enhance', action='store_true', help='Extract still images and analyze them for enhanced summarization')
+    parser.add_argument('--download-whisper-model', metavar='MODEL', nargs='?', const='base', 
+                       help='Download a Whisper model (default: base). Available models: tiny, base, small, medium, large')
     args = parser.parse_args()
+    
+    # Handle model download command
+    if args.download_whisper_model is not None:
+        try:
+            download_whisper_model(args.download_whisper_model)
+            print_flush(f"Whisper model '{args.download_whisper_model}' downloaded successfully")
+            return
+        except Exception as e:
+            print_flush(f"Failed to download Whisper model '{args.download_whisper_model}': {e}")
+            return 1
+    
+    # Require URL for normal operation
+    if not args.url:
+        parser.error("URL is required for video processing. Use --download-whisper-model to download models only.")
+    
     with tempfile.TemporaryDirectory() as tmpdir:
         import sys
         print_flush(f"Working in temp dir: {tmpdir}")
