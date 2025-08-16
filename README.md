@@ -448,10 +448,53 @@ Would post video: /tmp/tmpabcd1234/video_h265.mp4
 Would include source URL: https://www.youtube.com/watch?v=example
 ```
 
+## Docker Volume Mounts for Whisper Models
+
+When using Docker, it's recommended to mount volumes for Whisper models to avoid repeated downloads and improve performance:
+
+### Recommended Docker Mounts
+
+```sh
+# Create directories for persistent storage
+mkdir -p ./ninadon-data
+mkdir -p ./whisper-models
+
+# Run with both data and whisper model mounts
+docker run --rm \
+  -e OPENROUTER_API_KEY=your_openrouter_key \
+  -e AUTH_TOKEN=your_mastodon_token \
+  -e MASTODON_URL=https://mastodon.social \
+  -v $(pwd)/ninadon-data:/app/data \
+  -v $(pwd)/whisper-models:/app/.cache/whisper \
+  ghcr.io/rmoriz/ninadon:latest "https://www.youtube.com/watch?v=example"
+```
+
+### Why Mount Whisper Models?
+
+- **Performance**: Avoids re-downloading Whisper models on each container run
+- **Network efficiency**: Reduces bandwidth usage for repeated transcriptions
+- **Faster startup**: Models are immediately available without download delays
+
+### Additional Cache Mounts
+
+For even better performance, you can mount additional cache directories:
+
+```sh
+docker run --rm \
+  -e OPENROUTER_API_KEY=your_openrouter_key \
+  -e AUTH_TOKEN=your_mastodon_token \
+  -e MASTODON_URL=https://mastodon.social \
+  -v $(pwd)/ninadon-data:/app/data \
+  -v $(pwd)/whisper-models:/app/.cache/whisper \
+  -v $(pwd)/huggingface-cache:/app/.cache/huggingface \
+  -v $(pwd)/torch-cache:/app/.cache/torch \
+  ghcr.io/rmoriz/ninadon:latest "https://www.youtube.com/watch?v=example"
+```
+
 ## Troubleshooting
 
 - **Mastodon API Error 422:** The app now waits for Mastodon to finish processing the video before posting. If you still see this error, check your Mastodon instance and try increasing the wait timeout.
-- **Whisper model download:** The Docker image pre-downloads the Whisper "base" model for fast startup. If you use a different model, update the Dockerfile accordingly.
+- **Whisper model download:** The Docker image pre-downloads the Whisper "base" model for fast startup. If you use a different model, update the Dockerfile accordingly. Use volume mounts to persist downloaded models.
 - **OpenRouter API issues:** Ensure your API key is valid and you have sufficient quota.
 
 ## Code Quality
