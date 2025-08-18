@@ -35,6 +35,8 @@ services:
     volumes:
       # Persistent storage for user databases and context files
       - ninadon-data:/app/data
+      # Persistent storage for Whisper models
+      - ninadon-whisper:/app/.ninadon/whisper
     
     # Default command (override when running)
     command: ["--help"]
@@ -42,4 +44,7 @@ services:
 volumes:
   # Named volume for persistent data storage
   ninadon-data:
+    driver: local
+  # Named volume for Whisper model storage
+  ninadon-whisper:
     driver: local

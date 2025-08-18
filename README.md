@@ -291,6 +291,10 @@ ninadon() {
   local data_dir="${NINADON_DATA_DIR:-$HOME/.ninadon}"
   mkdir -p "$data_dir"
   
+  # Whisper-Modellverzeichnis
+  local whisper_dir="${NINADON_WHISPER_DIR:-$HOME/.ninadon/whisper}"
+  mkdir -p "$whisper_dir"
+  
   docker run --pull=always --rm \
     -e SYSTEM_PROMPT='Verfasse für das Video einen Social-Media-Post für '\
 'Mastodon auf Deutsch (Hinweis: maximal 350 Zeichen + 0–3 Hashtags, keine '\
@@ -321,6 +325,7 @@ ninadon() {
     -e ENHANCE_MODEL="${ENHANCE_MODEL:-google/gemini-2.5-flash-lite}" \
     -e MASTODON_URL="${MASTODON_URL:-https://mastodon.social}" \
     -v "${data_dir}:/app/data" \
+    -v "${whisper_dir}:/app/.ninadon/whisper" \
     ghcr.io/rmoriz/ninadon:latest --enhance "$@"
     # Optional: Map file permissions correctly (Linux/macOS)
     # --user "$(id -u):$(id -g)" \
@@ -460,12 +465,12 @@ mkdir -p ./ninadon-data
 mkdir -p ./whisper-models
 
 # Run with both data and whisper model mounts
-docker run --rm \
-  -e OPENROUTER_API_KEY=your_openrouter_key \
-  -e AUTH_TOKEN=your_mastodon_token \
-  -e MASTODON_URL=https://mastodon.social \
-  -v $(pwd)/ninadon-data:/app/data \
-  -v $(pwd)/whisper-models:/app/.cache/whisper \
+docker run --rm \\
+  -e OPENROUTER_API_KEY=your_openrouter_key \\
+  -e AUTH_TOKEN=your_mastodon_token \\
+  -e MASTODON_URL=https://mastodon.social \\
+  -v $(pwd)/ninadon-data:/app/data \\
+  -v $(pwd)/whisper-models:/app/.ninadon/whisper \\
   ghcr.io/rmoriz/ninadon:latest "https://www.youtube.com/watch?v=example"
 ```
 
@@ -474,22 +479,6 @@ docker run --rm \
 - **Performance**: Avoids re-downloading Whisper models on each container run
 - **Network efficiency**: Reduces bandwidth usage for repeated transcriptions
 - **Faster startup**: Models are immediately available without download delays
-
-### Additional Cache Mounts
-
-For even better performance, you can mount additional cache directories:
-
-```sh
-docker run --rm \
-  -e OPENROUTER_API_KEY=your_openrouter_key \
-  -e AUTH_TOKEN=your_mastodon_token \
-  -e MASTODON_URL=https://mastodon.social \
-  -v $(pwd)/ninadon-data:/app/data \
-  -v $(pwd)/whisper-models:/app/.cache/whisper \
-  -v $(pwd)/huggingface-cache:/app/.cache/huggingface \
-  -v $(pwd)/torch-cache:/app/.cache/torch \
-  ghcr.io/rmoriz/ninadon:latest "https://www.youtube.com/watch?v=example"
-```
 
 ## Troubleshooting
 
