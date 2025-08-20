@@ -270,10 +270,35 @@ def transcribe_video(video_path):
     if not os.path.exists(video_path):
         raise FileNotFoundError(f"Video file not found: {video_path}")
     
-    default_model = os.environ.get("WHISPER_MODEL", "base")
-    model = get_whisper_model(default_model)
-    result = model.transcribe(video_path)
-    return result["text"]
+    # Check if the video has an audio stream
+    try:
+        result = subprocess.run([
+            'ffprobe', '-v', 'quiet', '-select_streams', 'a:0',
+            '-show_entries', 'stream=codec_name', '-print_format', 'csv=p=0',
+            video_path
+        ], capture_output=True, text=True, check=True)
+        
+        audio_codec = result.stdout.strip()
+        if not audio_codec:
+            print_flush("Warning: Video file has no audio stream. Cannot transcribe.")
+            return ""
+            
+    except subprocess.CalledProcessError:
+        print_flush("Warning: Could not detect audio stream. Attempting transcription anyway...")
+    
+    try:
+        default_model = os.environ.get("WHISPER_MODEL", "base")
+        model = get_whisper_model(default_model)
+        result = model.transcribe(video_path)
+        return result["text"]
+    except Exception as e:
+        error_msg = str(e)
+        if "Failed to load audio" in error_msg and "does not contain any stream" in error_msg:
+            print_flush("Error: Video file contains no audio stream. Cannot transcribe.")
+            return ""
+        else:
+            # Re-raise other errors
+            raise
 
 def extract_transcript_from_platform(url, tmpdir):
     """
@@ -793,6 +818,11 @@ def main():
         else:
             print_flush("No platform transcript available, using whisper...")
             transcript = transcribe_video(video_path)
+        
+        # Handle case where no audio/transcript is available
+        if not transcript or (isinstance(transcript, str) and transcript.strip() == ""):
+            print_flush("No transcript available (video may be audio-free)")
+            transcript = "[No audio/transcript available]"
         
         print_flush(f"Transcript:\n{transcript}")
         
