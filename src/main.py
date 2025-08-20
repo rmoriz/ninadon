@@ -123,7 +123,7 @@ def download_video(url, tmpdir):
     outtmpl = os.path.join(tmpdir, 'video.%(ext)s')
     ydl_opts_info = {'quiet': True}
     info, _ydl = run_ydl(url, ydl_opts_info, False)
-    formats = info.get('formats', [])
+    formats = info.get('formats', []) if info else []
     muxed, videos, audios = collect_formats(formats)
     candidates = build_candidates(muxed, videos, audios)
     under_30mb = [c for c in candidates if c[0] < 30*1024*1024]
@@ -145,6 +145,8 @@ def download_video(url, tmpdir):
         except Exception as e:
             print_flush(f"Error downloading selected format: {e}\nFalling back to 'best' format.")
             ydl_opts['format'] = 'best'
+            # Force mp4 output if extension detection fails
+            ydl_opts['outtmpl'] = os.path.join(tmpdir, 'video.mp4')
             info, ydl = run_ydl(url, ydl_opts, True)
             filepath = select_filepath(info, ydl)
     else:
@@ -153,13 +155,18 @@ def download_video(url, tmpdir):
             print_flush(f"format_id={f.get('format_id')}, vcodec={f.get('vcodec')}, acodec={f.get('acodec')}, filesize={f.get('filesize')}, url={'yes' if f.get('url') else 'no'}")
         print_flush("Falling back to 'best' format.")
         ydl_opts = {
-            'outtmpl': outtmpl,
+            'outtmpl': os.path.join(tmpdir, 'video.mp4'),  # Force mp4 extension as fallback
             'format': 'best',
             'merge_output_format': 'mp4',
             'quiet': True,
         }
         info, ydl = run_ydl(url, ydl_opts, True)
         filepath = select_filepath(info, ydl)
+    
+    # Ensure we have valid info
+    if not info:
+        raise RuntimeError("Failed to extract video information")
+        
     title = info.get('title', '')
     description = info.get('description', '')
     uploader = info.get('uploader', info.get('channel', info.get('author', '')))
@@ -188,6 +195,46 @@ def download_video(url, tmpdir):
     return filepath, title, description, uploader, hashtags, platform, mime_type
 
 def transcribe_video(video_path):
+    # Handle .NA extension issue from yt-dlp
+    if video_path.endswith('.NA'):
+        # Try to detect the actual format and rename
+        try:
+            # Use ffprobe to detect the format
+            result = subprocess.run([
+                'ffprobe', '-v', 'quiet', '-print_format', 'json', 
+                '-show_format', video_path
+            ], capture_output=True, text=True, check=True)
+            
+            format_info = json.loads(result.stdout)
+            format_name = format_info.get('format', {}).get('format_name', '')
+            
+            # Determine appropriate extension
+            if 'mp4' in format_name or 'mov' in format_name:
+                new_ext = '.mp4'
+            elif 'webm' in format_name:
+                new_ext = '.webm'
+            elif 'mkv' in format_name:
+                new_ext = '.mkv'
+            else:
+                new_ext = '.mp4'  # Default fallback
+            
+            new_path = video_path.replace('.NA', new_ext)
+            os.rename(video_path, new_path)
+            video_path = new_path
+            print_flush(f"Renamed {video_path.replace(new_ext, '.NA')} to {video_path}")
+            
+        except (subprocess.CalledProcessError, json.JSONDecodeError, KeyError) as e:
+            print_flush(f"Warning: Could not detect video format: {e}")
+            # Try renaming to .mp4 as fallback
+            new_path = video_path.replace('.NA', '.mp4')
+            os.rename(video_path, new_path)
+            video_path = new_path
+            print_flush(f"Fallback: renamed to {video_path}")
+    
+    # Verify file exists and is readable
+    if not os.path.exists(video_path):
+        raise FileNotFoundError(f"Video file not found: {video_path}")
+    
     default_model = os.environ.get("WHISPER_MODEL", "base")
     model = get_whisper_model(default_model)
     result = model.transcribe(video_path)
