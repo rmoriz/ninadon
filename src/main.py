@@ -218,8 +218,11 @@ def download_video(url, tmpdir):
     
     if not filepath:
         print_flush("No directly downloadable formats found! Available formats:")
-        for f in formats:
-            print_flush(f"format_id={f.get('format_id')}, vcodec={f.get('vcodec')}, acodec={f.get('acodec')}, filesize={f.get('filesize')}, url={'yes' if f.get('url') else 'no'}")
+        if formats:
+            for f in formats:
+                print_flush(f"format_id={f.get('format_id')}, vcodec={f.get('vcodec')}, acodec={f.get('acodec')}, filesize={f.get('filesize')}, url={'yes' if f.get('url') else 'no'}")
+        else:
+            print_flush("No formats available")
         print_flush("Falling back to 'best' format.")
         ydl_opts = {
             'outtmpl': os.path.join(tmpdir, 'video.%(ext)s'),
@@ -321,7 +324,7 @@ def extract_transcript_from_platform(url, tmpdir):
     }
     
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:  # type: ignore
             info = ydl.extract_info(url, download=True)
             
             # Check if subtitles were downloaded
@@ -671,7 +674,7 @@ def load_context(uploader):
     return None
 
 def summarize_text(transcript, description, uploader, image_analysis=None, context=None):
-    system_prompt = getenv("SYSTEM_PROMPT", "Summarize the following video transcript, description, and account name:")
+    system_prompt = getenv("SYSTEM_PROMPT", "Summarize the following video transcript, description, and account name. Additionally, create a detailed video description for visually impaired people (up to 1400 characters) that describes what happens in the video based on the transcript and any available visual information. Respond with valid JSON in this exact format: {\"summary\": \"your summary here\", \"video_description\": \"detailed description for visually impaired up to 1400 characters\"}")
     api_key = getenv("OPENROUTER_API_KEY", required=True)
     url = "https://openrouter.ai/api/v1/chat/completions"
     headers = {
@@ -747,7 +750,77 @@ def wait_for_media_processing(mastodon, media_id, timeout=None, poll_interval=2)
                f"Consider increasing the MASTODON_MEDIA_TIMEOUT environment variable or checking your Mastodon instance's limits.")
     raise RuntimeError(f"Media processing timed out for media_id={media_id}")
 
-def post_to_mastodon(summary, video_path, source_url, mime_type=None):
+def extract_summary_and_description(ai_response):
+    """Extract both the summary and video description from the AI response."""
+    import json
+    import re
+    
+    # First try to parse as JSON
+    try:
+        # Sometimes AI responses have extra text before/after JSON, so extract JSON block
+        json_match = re.search(r'\{.*?"summary".*?"video_description".*?\}', ai_response, re.DOTALL)
+        if json_match:
+            json_str = json_match.group(0)
+            data = json.loads(json_str)
+            summary = data.get("summary", "").strip()
+            video_description = data.get("video_description", "").strip()
+            
+            # Ensure video description is not longer than 1400 characters
+            if len(video_description) > 1400:
+                video_description = video_description[:1397] + "..."
+                
+            return summary, video_description
+    except (json.JSONDecodeError, AttributeError):
+        pass
+    
+    # Fallback: try the old text-based parsing for backwards compatibility
+    # Pattern to find the summary section
+    summary_pattern = r"Summary:\s*(.+?)(?=\n\nVideo Description for Visually Impaired:|$)"
+    summary_match = re.search(summary_pattern, ai_response, re.DOTALL | re.IGNORECASE)
+    
+    # Pattern to find the video description section  
+    desc_pattern = r"Video Description for Visually Impaired:\s*(.+?)(?:\n\n|$)"
+    desc_match = re.search(desc_pattern, ai_response, re.DOTALL | re.IGNORECASE)
+    
+    # Extract summary
+    if summary_match:
+        summary = summary_match.group(1).strip()
+    else:
+        # Fallback: use everything before "Video Description" or the whole text
+        if "Video Description for Visually Impaired:" in ai_response:
+            summary = ai_response.split("Video Description for Visually Impaired:")[0].strip()
+        else:
+            # Last fallback: split the response in half
+            lines = ai_response.strip().split('\n')
+            mid_point = len(lines) // 2
+            summary = '\n'.join(lines[:mid_point]).strip()
+    
+    # Extract video description
+    if desc_match:
+        description = desc_match.group(1).strip()
+        # Ensure it's not longer than 1400 characters
+        if len(description) > 1400:
+            description = description[:1397] + "..."
+    else:
+        # Fallback: use the second half or the summary as description
+        lines = ai_response.strip().split('\n')
+        mid_point = len(lines) // 2
+        if len(lines) > mid_point:
+            description = '\n'.join(lines[mid_point:]).strip()
+        else:
+            description = summary
+        
+        if len(description) > 1400:
+            description = description[:1397] + "..."
+    
+    return summary, description
+
+def extract_video_description(summary_text):
+    """Extract the video description for visually impaired from the AI summary."""
+    _, description = extract_summary_and_description(summary_text)
+    return description
+
+def post_to_mastodon(summary, video_path, source_url, mime_type=None, video_description=None):
     size_bytes = os.path.getsize(video_path)
     size_mb = size_bytes / (1024 * 1024)
     print_flush(f"Video file size before posting: {size_mb:.2f} MB ({size_bytes} bytes)")
@@ -761,7 +834,7 @@ def post_to_mastodon(summary, video_path, source_url, mime_type=None):
         mime_type, _ = mimetypes.guess_type(video_path)
         if not mime_type:
             mime_type = "application/octet-stream"
-    media = mastodon.media_post(video_path, mime_type=mime_type)
+    media = mastodon.media_post(video_path, mime_type=mime_type, description=video_description)
     print_flush(f"Waiting for Mastodon to process video...")
     mastodon_timeout = int(getenv("MASTODON_MEDIA_TIMEOUT", "600"))
     print_flush(f"Mastodon media processing timeout: {mastodon_timeout} seconds")
@@ -851,8 +924,13 @@ def main():
             print_flush("No context available")
         
         print_flush("Starting summarization...")
-        summary = summarize_text(transcript, description, uploader, image_analysis, context)
-        print_flush(f"Summary:\n{summary}")
+        ai_response = summarize_text(transcript, description, uploader, image_analysis, context)
+        print_flush(f"AI Response:\n{ai_response}")
+        
+        # Extract summary and video description separately
+        summary, video_description = extract_summary_and_description(ai_response)
+        print_flush(f"Summary for Toot:\n{summary}")
+        print_flush(f"Video description for visually impaired ({len(video_description)} chars):\n{video_description}")
         enable_transcoding = os.environ.get("ENABLE_TRANSCODING", "").lower() in ("1", "true", "yes")
         if enable_transcoding:
             print_flush("Transcoding is enabled. Checking if transcoding is needed...")
@@ -866,9 +944,10 @@ def main():
             print_flush(f"Would post summary:\n{summary}")
             print_flush(f"Would post video: {final_video_path}")
             print_flush(f"Would include source URL: {args.url}")
+            print_flush(f"Would use video description: {video_description}")
         else:
             print_flush("Starting Mastodon post...")
-            mastodon_url = post_to_mastodon(summary, final_video_path, args.url, mime_type)
+            mastodon_url = post_to_mastodon(summary, final_video_path, args.url, mime_type, video_description)
             print_flush(f"Mastodon post URL: {mastodon_url}")
         # Temp files are cleaned up automatically
 

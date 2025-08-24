@@ -67,8 +67,11 @@ def test_download_video_selects_format(monkeypatch, tmp_path):
                     "uploader": "testuser"
                 }
             else:
+                # Create the video file to simulate download
+                video_path = tmp_path / "video.mp4"
+                video_path.write_text("fake video content")
                 return {
-                    "requested_downloads": [{"filepath": str(tmp_path / "video.mp4")}],
+                    "requested_downloads": [{"filepath": str(video_path)}],
                     "title": "Test Video",
                     "description": "Test description #hashtag",
                     "uploader": "testuser"
@@ -87,9 +90,9 @@ def test_post_to_mastodon(monkeypatch, fake_video_path):
     # Mock Mastodon and its methods
     class FakeMastodon:
         def __init__(self, **kwargs): pass
-        def media_post(self, path, mime_type): return {"id": "mediaid"}
+        def media_post(self, path, mime_type=None, description=None): return {"id": "mediaid"}
         def media(self, media_id): return {"id": "mediaid", "url": "http://media", "processing": False}
-        def status_post(self, text, media_ids): return {"url": "http://mastodon/post"}
+        def status_post(self, text, media_ids=None): return {"url": "http://mastodon/post"}
     monkeypatch.setattr(main, "Mastodon", FakeMastodon)
     os.environ["AUTH_TOKEN"] = "dummy"
     os.environ["MASTODON_URL"] = "https://mastodon.social"
@@ -102,7 +105,7 @@ def test_main_flow(monkeypatch, tmp_path):
     monkeypatch.setattr(main, "transcribe_video", lambda path: "transcript")
     monkeypatch.setattr(main, "summarize_text", lambda t, d, u, i=None, c=None: "summary")
     monkeypatch.setattr(main, "maybe_reencode", lambda path, tmpdir: path)
-    monkeypatch.setattr(main, "post_to_mastodon", lambda s, v, u, m: "http://mastodon/post")
+    monkeypatch.setattr(main, "post_to_mastodon", lambda s, v, u, m=None, d=None: "http://mastodon/post")
     
     # Mock database functions
     monkeypatch.setattr(main, "add_to_database", lambda *args: None)
@@ -167,7 +170,7 @@ def test_enhance_functionality(monkeypatch, tmp_path):
     
     monkeypatch.setattr(main, "summarize_text", mock_summarize_text)
     monkeypatch.setattr(main, "maybe_reencode", lambda path, tmpdir: path)
-    monkeypatch.setattr(main, "post_to_mastodon", lambda s, v, u, m: "http://mastodon/post")
+    monkeypatch.setattr(main, "post_to_mastodon", lambda s, v, u, m=None, d=None: "http://mastodon/post")
     
     # Simulate CLI args with --enhance flag
     sys_argv = sys.argv
