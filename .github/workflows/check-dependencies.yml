@@ -1,0 +1,42 @@
+name: Check Dependencies
+
+on:
+  schedule:
+    # Check for new yt-dlp releases daily at 6 AM UTC
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  check-yt-dlp:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Get current yt-dlp version in image
+        id: current
+        run: |
+          # Get the latest image and check yt-dlp version
+          docker pull ghcr.io/${{ github.repository_owner }}/ninadon:latest || echo "No existing image"
+          CURRENT_VERSION=$(docker run --rm ghcr.io/${{ github.repository_owner }}/ninadon:latest -c "pip show yt-dlp | grep Version | cut -d' ' -f2" 2>/dev/null || echo "unknown")
+          echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Get latest yt-dlp version
+        id: latest
+        run: |
+          LATEST_VERSION=$(pip index versions yt-dlp | grep "Available versions:" | cut -d' ' -f3 | cut -d',' -f1)
+          echo "version=$LATEST_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Trigger rebuild if versions differ
+        if: steps.current.outputs.version != steps.latest.outputs.version
+        run: |
+          curl -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/${{ github.repository }}/actions/workflows/docker.yml/dispatches \
+            -d '{"ref":"main"}'

@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - main
+  schedule:
+    # Build weekly on Sundays at 2 AM UTC to pick up new yt-dlp versions
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
 
 jobs:
   build-and-push:
