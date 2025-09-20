@@ -2,3 +2,5 @@ yt-dlp
 openai-whisper
 Mastodon.py
 requests
+Flask
+Flask-HTTPAuth

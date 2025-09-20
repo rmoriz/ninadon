@@ -90,6 +90,124 @@ Set these variables before running:
 python src/main.py "https://www.youtube.com/watch?v=example"
 ```
 
+### Web Application
+
+Ninadon can also run as a web application with a simple HTML interface and RESTful API endpoints:
+
+```sh
+# Start the web server
+python src/main.py --web --port 5000 --host 127.0.0.1
+
+# With custom port and host
+python src/main.py --web --port 8080 --host 0.0.0.0
+```
+
+#### Web Application Features
+
+- **Simple HTML Interface**: Easy-to-use web form for submitting video URLs
+- **RESTful API**: JSON endpoints for programmatic access
+- **Basic Authentication**: Optional user/password protection
+- **Async Processing**: Videos are processed in background threads
+- **Job Status Tracking**: Monitor processing progress in real-time
+- **Auto-refresh**: Web interface updates job status automatically
+
+#### Web Application Environment Variables
+
+Additional environment variables for web mode:
+
+- `WEB_USER` — (optional) Username for basic authentication
+- `WEB_PASSWORD` — (optional) Password for basic authentication
+
+If both `WEB_USER` and `WEB_PASSWORD` are set, the web interface will require basic authentication. If not set, the web interface will be accessible without authentication (not recommended for production).
+
+#### RESTful API Endpoints
+
+- `GET /` — HTML interface for submitting videos
+- `POST /api/process` — Submit a video for processing
+- `GET /api/jobs` — List all jobs (newest first)
+- `GET /api/status/<job_id>` — Get status of a specific job
+
+#### API Examples
+
+**Submit a video for processing:**
+
+```bash
+curl -X POST \
+  -u username:password \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://www.youtube.com/watch?v=example", "enhance": true, "dry_run": false}' \
+  http://localhost:5000/api/process
+```
+
+Response:
+```json
+{
+  "job_id": "123e4567-e89b-12d3-a456-426614174000",
+  "status": "created"
+}
+```
+
+**Check job status:**
+
+```bash
+curl -u username:password http://localhost:5000/api/status/123e4567-e89b-12d3-a456-426614174000
+```
+
+Response:
+```json
+{
+  "id": "123e4567-e89b-12d3-a456-426614174000",
+  "url": "https://www.youtube.com/watch?v=example",
+  "status": "completed",
+  "progress": "Posted to Mastodon successfully",
+  "result": {
+    "title": "Example Video",
+    "summary": "Video summary...",
+    "mastodon_url": "https://mastodon.social/@user/123456"
+  }
+}
+```
+
+**List all jobs:**
+
+```bash
+curl -u username:password http://localhost:5000/api/jobs
+```
+
+#### Docker Web Application
+
+```sh
+# Run web server in Docker
+docker run --rm -p 5000:5000 \
+  -e OPENROUTER_API_KEY=your_openrouter_key \
+  -e AUTH_TOKEN=your_mastodon_token \
+  -e WEB_USER=myuser \
+  -e WEB_PASSWORD=mypassword \
+  -v $(pwd)/ninadon-data:/app/data \
+  ghcr.io/rmoriz/ninadon:latest --web --host 0.0.0.0 --port 5000
+```
+
+Then access the web interface at `http://localhost:5000`
+
+#### Production Deployment
+
+For production deployment, consider:
+
+- Using a proper WSGI server (gunicorn, uwsgi) instead of Flask's development server
+- Setting up reverse proxy (nginx, Apache) for SSL termination
+- Configuring proper basic authentication or integrating with your authentication system
+- Setting resource limits for video processing
+- Monitoring disk space for temporary files and database storage
+
+#### Mobile App Integration
+
+The RESTful API makes it easy to build mobile applications:
+
+1. **Submit videos**: Use `POST /api/process` to start processing
+2. **Poll status**: Use `GET /api/status/<job_id>` to check progress
+3. **Authentication**: Use HTTP Basic Auth with `WEB_USER`/`WEB_PASSWORD`
+4. **Error handling**: API returns proper HTTP status codes and error messages
+
 #### Dry Run
 
 To test the workflow without actually posting to Mastodon, use the `--dry` flag:
