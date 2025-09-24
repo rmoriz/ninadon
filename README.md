@@ -62,6 +62,20 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
+**Requirements:**
+- Python 3.11+
+- Deno JavaScript runtime (required for yt-dlp)
+- ffmpeg (for video processing)
+
+Install Deno:
+```sh
+# Unix/macOS
+curl -fsSL https://deno.land/install.sh | sh
+
+# Windows (PowerShell)
+irm https://deno.land/install.ps1 | iex
+```
+
 ## Environment Variables
 
 Set these variables before running:

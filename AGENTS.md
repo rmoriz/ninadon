@@ -5,6 +5,7 @@
 - **Activate venv (Unix/macOS):** `source .venv/bin/activate`
 - **Activate venv (Windows):** `.venv\Scripts\activate`
 - **Install dependencies:** `pip install -r requirements.txt`
+- **Install Deno (required for yt-dlp):** `curl -fsSL https://deno.land/install.sh | sh` (Unix/macOS) or download from https://deno.land/
 
 ## Build, Lint, and Test Commands
 
@@ -22,6 +23,7 @@
 - **Running the tests before every git commit or push is MANDATORY. This is a MUST, not a recommendation.**
 
 - **Install dependencies:** `pip install -r requirements.txt`
+- **Install Deno:** Ensure Deno is installed (required for future yt-dlp versions)
 - **Build Docker image:** `docker build .`
 - **Run app:** `python src/main.py <video_url>`
 - **Lint (recommended):** `ruff src/` or `flake8 src/` (add to requirements if needed)
