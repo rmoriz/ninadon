@@ -69,10 +69,10 @@ class TestConfig:
         with pytest.raises(RuntimeError, match="OPENROUTER_API_KEY environment variable not set"):
             _ = config.OPENROUTER_API_KEY
 
-        with pytest.raises(RuntimeError, match="MASTODON_ACCESS_TOKEN environment variable not set"):
+        with pytest.raises(RuntimeError, match="MASTODON_ACCESS_TOKEN or AUTH_TOKEN environment variable not set"):
             _ = config.MASTODON_ACCESS_TOKEN
 
-        with pytest.raises(RuntimeError, match="MASTODON_BASE_URL environment variable not set"):
+        with pytest.raises(RuntimeError, match="MASTODON_BASE_URL or MASTODON_URL environment variable not set"):
             _ = config.MASTODON_BASE_URL
         
         # Test that present keys work
@@ -83,6 +83,22 @@ class TestConfig:
         assert config.OPENROUTER_API_KEY == "test_api_key"
         assert config.MASTODON_ACCESS_TOKEN == "test_token"
         assert config.MASTODON_BASE_URL == "https://mastodon.example.com"
+
+        # Test backward compatibility with old environment variable names
+        monkeypatch.delenv("MASTODON_ACCESS_TOKEN", raising=False)
+        monkeypatch.delenv("MASTODON_BASE_URL", raising=False)
+        monkeypatch.setenv("AUTH_TOKEN", "old_token")
+        monkeypatch.setenv("MASTODON_URL", "https://old.mastodon.example.com")
+
+        assert config.MASTODON_ACCESS_TOKEN == "old_token"
+        assert config.MASTODON_BASE_URL == "https://old.mastodon.example.com"
+
+        # Test that new names take precedence over old names
+        monkeypatch.setenv("MASTODON_ACCESS_TOKEN", "new_token")
+        monkeypatch.setenv("MASTODON_BASE_URL", "https://new.mastodon.example.com")
+
+        assert config.MASTODON_ACCESS_TOKEN == "new_token"
+        assert config.MASTODON_BASE_URL == "https://new.mastodon.example.com"
     
     def test_get_data_root(self, monkeypatch, tmp_path):
         """Test get_data_root method."""

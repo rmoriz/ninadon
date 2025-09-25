@@ -35,11 +35,19 @@ class Config:
 
     @property
     def MASTODON_ACCESS_TOKEN(self):
-        return getenv("MASTODON_ACCESS_TOKEN", required=True)
+        # Support both new and old environment variable names for backward compatibility
+        token = getenv("MASTODON_ACCESS_TOKEN") or getenv("AUTH_TOKEN")
+        if not token:
+            raise RuntimeError("MASTODON_ACCESS_TOKEN or AUTH_TOKEN environment variable not set")
+        return token
 
     @property
     def MASTODON_BASE_URL(self):
-        return getenv("MASTODON_BASE_URL", required=True)
+        # Support both new and old environment variable names for backward compatibility
+        url = getenv("MASTODON_BASE_URL") or getenv("MASTODON_URL")
+        if not url:
+            raise RuntimeError("MASTODON_BASE_URL or MASTODON_URL environment variable not set")
+        return url
 
     # Prompts
     SYSTEM_PROMPT = getenv(
