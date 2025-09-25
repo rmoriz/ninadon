@@ -13,7 +13,16 @@ from .utils import print_flush
 
 def get_video_duration(video_path):
     """Get video duration in seconds using ffprobe."""
-    cmd = ["ffprobe", "-v", "quiet", "-show_entries", "format=duration", "-of", "csv=p=0", video_path]
+    cmd = [
+        "ffprobe",
+        "-v",
+        "quiet",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "csv=p=0",
+        video_path,
+    ]
     result = subprocess.run(cmd, capture_output=True, text=True, check=True)
     return float(result.stdout.strip())
 
@@ -34,7 +43,19 @@ def extract_still_images(video_path, tmpdir):
     image_paths = []
     for i, timestamp in enumerate(timestamps):
         image_path = os.path.join(tmpdir, f"frame_{i:02d}.jpg")
-        cmd = ["ffmpeg", "-ss", str(timestamp), "-i", video_path, "-vframes", "1", "-q:v", "5", "-y", image_path]
+        cmd = [
+            "ffmpeg",
+            "-ss",
+            str(timestamp),
+            "-i",
+            video_path,
+            "-vframes",
+            "1",
+            "-q:v",
+            "5",
+            "-y",
+            image_path,
+        ]
         subprocess.run(cmd, check=True, capture_output=True)
         image_paths.append(image_path)
         print_flush(f"Extracted frame at {timestamp:.1f}s: {image_path}")
@@ -65,9 +86,17 @@ def analyze_images_with_openrouter(image_paths):
 
     for image_path in image_paths:
         base64_image = encode_image_to_base64(image_path)
-        content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}})
+        content.append(
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
+            }
+        )
 
-    data = {"model": Config.ENHANCE_MODEL, "messages": [{"role": "user", "content": content}]}
+    data = {
+        "model": Config.ENHANCE_MODEL,
+        "messages": [{"role": "user", "content": content}],
+    }
 
     import sys
 

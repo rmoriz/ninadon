@@ -4,3 +4,4 @@ Mastodon.py
 requests
 Flask
 Flask-HTTPAuth
+ruff

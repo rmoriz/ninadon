@@ -84,7 +84,15 @@ def fix_downloaded_filepath(filepath, tmpdir):
         try:
             # Use ffprobe to detect the format
             result = subprocess.run(
-                ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", filepath],
+                [
+                    "ffprobe",
+                    "-v",
+                    "quiet",
+                    "-print_format",
+                    "json",
+                    "-show_format",
+                    filepath,
+                ],
                 capture_output=True,
                 text=True,
                 check=True,
@@ -163,7 +171,9 @@ def download_video(url, tmpdir):
     if under_30mb:
         best_candidate = under_30mb[-1]
         chosen_size, chosen_format_id = best_candidate[0], best_candidate[1]
-        print_flush(f"Selected format {chosen_format_id} with size {chosen_size // (1024*1024)} MB")
+        print_flush(
+            f"Selected format {chosen_format_id} with size {chosen_size // (1024 * 1024)} MB"
+        )
         ydl_opts = {
             "outtmpl": outtmpl,
             "format": chosen_format_id,
@@ -174,7 +184,9 @@ def download_video(url, tmpdir):
             info, ydl = run_ydl(url, ydl_opts, True)
             filepath = select_filepath(info, ydl)
         except Exception as e:
-            print_flush(f"Error downloading selected format: {e}\nFalling back to 'best' format.")
+            print_flush(
+                f"Error downloading selected format: {e}\nFalling back to 'best' format."
+            )
             filepath = None
 
     if not filepath:

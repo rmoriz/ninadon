@@ -25,9 +25,10 @@
 - **Running the tests before every git commit or push is MANDATORY. This is a MUST, not a recommendation.**
 
 ### Linting
-- **Lint code:** `ruff src/`
-- **Fix linting issues:** `ruff src/ --fix`
-- **Check specific file:** `ruff src/main.py`
+- **Lint code:** `ruff check src/`
+- **Fix linting issues:** `ruff check --fix src/`
+- **Format code:** `ruff format src/`
+- **Check specific file:** `ruff check src/main.py`
 
 ### Building and Running
 - **Install dependencies:** `pip install -r requirements.txt`

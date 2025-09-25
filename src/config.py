@@ -18,7 +18,9 @@ class Config:
 
     # Paths
     DATA_PATH = getenv("DATA_PATH", "/app/data")
-    WHISPER_MODEL_DIRECTORY = getenv("WHISPER_MODEL_DIRECTORY", os.path.expanduser("~/.ninadon/whisper"))
+    WHISPER_MODEL_DIRECTORY = getenv(
+        "WHISPER_MODEL_DIRECTORY", os.path.expanduser("~/.ninadon/whisper")
+    )
 
     # Models
     WHISPER_MODEL = getenv("WHISPER_MODEL", "base")
@@ -51,7 +53,8 @@ class Config:
     )
     USER_PROMPT = getenv("USER_PROMPT", "")
     IMAGE_ANALYSIS_PROMPT = getenv(
-        "IMAGE_ANALYSIS_PROMPT", "Analyze these photos from a tiktok clip, make a connection between the photos"
+        "IMAGE_ANALYSIS_PROMPT",
+        "Analyze these photos from a tiktok clip, make a connection between the photos",
     )
     CONTEXT_PROMPT = getenv(
         "CONTEXT_PROMPT",
@@ -67,7 +70,11 @@ class Config:
     MASTODON_MEDIA_TIMEOUT = int(getenv("MASTODON_MEDIA_TIMEOUT", "600"))
 
     # Features
-    ENABLE_TRANSCODING = getenv("ENABLE_TRANSCODING", "").lower() in ("1", "true", "yes")
+    ENABLE_TRANSCODING = getenv("ENABLE_TRANSCODING", "").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
 
     # Web interface
     @property

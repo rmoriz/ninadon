@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 import warnings
 
-warnings.filterwarnings("ignore", message="FP16 is not supported on CPU; using FP32 instead")
+warnings.filterwarnings(
+    "ignore", message="FP16 is not supported on CPU; using FP32 instead"
+)
 import argparse
 import base64
 import json
@@ -14,13 +16,12 @@ import threading
 import time
 import uuid
 from datetime import datetime
-from functools import wraps
 from pathlib import Path
 
 import requests
 import whisper
 import yt_dlp
-from flask import Flask, jsonify, render_template_string, request
+from flask import Flask, jsonify, request
 from flask_httpauth import HTTPBasicAuth
 from mastodon import Mastodon
 
@@ -170,7 +171,15 @@ def fix_downloaded_filepath(filepath, tmpdir):
         try:
             # Use ffprobe to detect the format
             result = subprocess.run(
-                ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", filepath],
+                [
+                    "ffprobe",
+                    "-v",
+                    "quiet",
+                    "-print_format",
+                    "json",
+                    "-show_format",
+                    filepath,
+                ],
                 capture_output=True,
                 text=True,
                 check=True,
@@ -224,7 +233,9 @@ def download_video(url, tmpdir):
     if under_30mb:
         best_candidate = under_30mb[-1]
         chosen_size, chosen_format_id = best_candidate[0], best_candidate[1]
-        print_flush(f"Selected format {chosen_format_id} with size {chosen_size // (1024*1024)} MB")
+        print_flush(
+            f"Selected format {chosen_format_id} with size {chosen_size // (1024 * 1024)} MB"
+        )
         ydl_opts = {
             "outtmpl": outtmpl,
             "format": chosen_format_id,
@@ -235,7 +246,9 @@ def download_video(url, tmpdir):
             info, ydl = run_ydl(url, ydl_opts, True)
             filepath = select_filepath(info, ydl)
         except Exception as e:
-            print_flush(f"Error downloading selected format: {e}\nFalling back to 'best' format.")
+            print_flush(
+                f"Error downloading selected format: {e}\nFalling back to 'best' format."
+            )
             filepath = None
 
     if not filepath:
@@ -324,7 +337,9 @@ def transcribe_video(video_path):
             return ""
 
     except subprocess.CalledProcessError:
-        print_flush("Warning: Could not detect audio stream. Attempting transcription anyway...")
+        print_flush(
+            "Warning: Could not detect audio stream. Attempting transcription anyway..."
+        )
 
     try:
         default_model = os.environ.get("WHISPER_MODEL", "base")
@@ -333,8 +348,13 @@ def transcribe_video(video_path):
         return result["text"]
     except Exception as e:
         error_msg = str(e)
-        if "Failed to load audio" in error_msg and "does not contain any stream" in error_msg:
-            print_flush("Error: Video file contains no audio stream. Cannot transcribe.")
+        if (
+            "Failed to load audio" in error_msg
+            and "does not contain any stream" in error_msg
+        ):
+            print_flush(
+                "Error: Video file contains no audio stream. Cannot transcribe."
+            )
             return ""
         else:
             # Re-raise other errors
@@ -376,7 +396,9 @@ def extract_transcript_from_platform(url, tmpdir):
                         # Read and parse the subtitle file
                         transcript = parse_subtitle_file(subtitle_path)
                         if transcript.strip():
-                            print_flush("Successfully extracted transcript from platform")
+                            print_flush(
+                                "Successfully extracted transcript from platform"
+                            )
                             return transcript
 
             print_flush("No platform transcripts found or extracted")
@@ -407,7 +429,7 @@ def parse_subtitle_file(subtitle_path):
                 line
                 and not line.startswith("WEBVTT")
                 and not line.startswith("NOTE")
-                and not "-->" in line
+                and "-->" not in line
                 and not line.isdigit()
                 and not line.startswith("STYLE")
                 and not line.startswith("::cue")
@@ -426,7 +448,16 @@ def parse_subtitle_file(subtitle_path):
 
 def get_video_duration(video_path):
     """Get video duration in seconds using ffprobe."""
-    cmd = ["ffprobe", "-v", "quiet", "-show_entries", "format=duration", "-of", "csv=p=0", video_path]
+    cmd = [
+        "ffprobe",
+        "-v",
+        "quiet",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "csv=p=0",
+        video_path,
+    ]
     result = subprocess.run(cmd, capture_output=True, text=True, check=True)
     return float(result.stdout.strip())
 
@@ -447,7 +478,19 @@ def extract_still_images(video_path, tmpdir):
     image_paths = []
     for i, timestamp in enumerate(timestamps):
         image_path = os.path.join(tmpdir, f"frame_{i:02d}.jpg")
-        cmd = ["ffmpeg", "-ss", str(timestamp), "-i", video_path, "-vframes", "1", "-q:v", "5", "-y", image_path]
+        cmd = [
+            "ffmpeg",
+            "-ss",
+            str(timestamp),
+            "-i",
+            video_path,
+            "-vframes",
+            "1",
+            "-q:v",
+            "5",
+            "-y",
+            image_path,
+        ]
         subprocess.run(cmd, check=True, capture_output=True)
         image_paths.append(image_path)
         print_flush(f"Extracted frame at {timestamp:.1f}s: {image_path}")
@@ -476,13 +519,19 @@ def analyze_images_with_openrouter(image_paths):
 
     # Prepare image content for the API
     image_prompt = getenv(
-        "IMAGE_ANALYSIS_PROMPT", "Analyze these photos from a tiktok clip, make a connection between the photos"
+        "IMAGE_ANALYSIS_PROMPT",
+        "Analyze these photos from a tiktok clip, make a connection between the photos",
     )
     content = [{"type": "text", "text": image_prompt}]
 
     for image_path in image_paths:
         base64_image = encode_image_to_base64(image_path)
-        content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}})
+        content.append(
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
+            }
+        )
 
     data = {"model": model, "messages": [{"role": "user", "content": content}]}
 
@@ -503,7 +552,7 @@ def analyze_images_with_openrouter(image_paths):
 
     try:
         resp.raise_for_status()
-    except requests.exceptions.HTTPError as e:
+    except requests.exceptions.HTTPError:
         if resp.status_code == 404:
             print_flush(
                 "ERROR: 404 Not Found from OpenRouter API for image analysis. This may mean the model name is invalid or unavailable. Please check the ENHANCE_MODEL environment variable."
@@ -573,7 +622,9 @@ def save_database(uploader, database):
         print_flush(f"Warning: Could not save database for {uploader}: {e}")
 
 
-def add_to_database(uploader, title, description, hashtags, platform, transcript, image_analysis=None):
+def add_to_database(
+    uploader, title, description, hashtags, platform, transcript, image_analysis=None
+):
     """Add a new entry to the user's database or update existing entry if video already exists."""
     database = load_database(uploader)
 
@@ -615,7 +666,9 @@ def generate_context_summary(uploader):
     database = load_database(uploader)
 
     if not database:
-        print_flush(f"No database entries found for {uploader}, skipping context generation")
+        print_flush(
+            f"No database entries found for {uploader}, skipping context generation"
+        )
         return None
 
     # Load existing context to build upon it
@@ -630,7 +683,9 @@ def generate_context_summary(uploader):
         db_content += f"Title: {entry['title']}\n"
         db_content += f"Description: {entry['description']}\n"
         db_content += f"Hashtags: {', '.join(entry['hashtags'])}\n"
-        db_content += f"Transcript: {entry['transcript'][:500]}...\n"  # Limit transcript length
+        db_content += (
+            f"Transcript: {entry['transcript'][:500]}...\n"  # Limit transcript length
+        )
         if entry.get("image_recognition"):
             db_content += f"Image Recognition: {entry['image_recognition'][:300]}...\n"
         db_content += "\n---\n\n"
@@ -658,19 +713,30 @@ def generate_context_summary(uploader):
 
     data = {
         "model": context_model,
-        "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": db_content}],
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": db_content},
+        ],
     }
 
     import sys
 
     print(f"[OpenRouter CONTEXT REQUEST] URL: {url}", file=sys.stderr)
     print(f"[OpenRouter CONTEXT REQUEST] Model: {context_model}", file=sys.stderr)
-    print(f"[OpenRouter CONTEXT REQUEST] Database entries: {len(database)}", file=sys.stderr)
-    print(f"[OpenRouter CONTEXT REQUEST] Existing context: {'Yes' if existing_context else 'No'}", file=sys.stderr)
+    print(
+        f"[OpenRouter CONTEXT REQUEST] Database entries: {len(database)}",
+        file=sys.stderr,
+    )
+    print(
+        f"[OpenRouter CONTEXT REQUEST] Existing context: {'Yes' if existing_context else 'No'}",
+        file=sys.stderr,
+    )
 
     try:
         resp = requests.post(url, headers=headers, json=data)
-        print(f"[OpenRouter CONTEXT RESPONSE] Status: {resp.status_code}", file=sys.stderr)
+        print(
+            f"[OpenRouter CONTEXT RESPONSE] Status: {resp.status_code}", file=sys.stderr
+        )
 
         resp.raise_for_status()
         context_summary = resp.json()["choices"][0]["message"]["content"]
@@ -710,7 +776,9 @@ def load_context(uploader):
     return None
 
 
-def summarize_text(transcript, description, uploader, image_analysis=None, context=None):
+def summarize_text(
+    transcript, description, uploader, image_analysis=None, context=None
+):
     system_prompt = getenv(
         "SYSTEM_PROMPT",
         'Summarize the following video transcript, description, and account name. Additionally, create a detailed video description for visually impaired people (up to 1400 characters) that describes what happens in the video based on the transcript and any available visual information. Respond with valid JSON in this exact format: {"summary": "your summary here", "video_description": "detailed description for visually impaired up to 1400 characters"}',
@@ -738,7 +806,10 @@ def summarize_text(transcript, description, uploader, image_analysis=None, conte
 
     data = {
         "model": getenv("OPENROUTER_MODEL", "tngtech/deepseek-r1t2-chimera:free"),
-        "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_content}],
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content},
+        ],
     }
     import sys
 
@@ -754,7 +825,7 @@ def summarize_text(transcript, description, uploader, image_analysis=None, conte
     print(f"[OpenRouter RESPONSE] Body: {resp.text}", file=sys.stderr)
     try:
         resp.raise_for_status()
-    except requests.exceptions.HTTPError as e:
+    except requests.exceptions.HTTPError:
         if resp.status_code == 404:
             print_flush(
                 "ERROR: 404 Not Found from OpenRouter API. This may mean the model name is invalid or unavailable. Please check the OPENROUTER_MODEL environment variable and use a valid model name, such as 'openai/gpt-4o'."
@@ -771,7 +842,18 @@ def maybe_reencode(video_path, tmpdir):
         print_flush(f"Re-encoding {video_path} to H.265 (size: {size_mb:.2f}MB)...")
         transcode_timeout = int(getenv("TRANSCODE_TIMEOUT", "600"))
         subprocess.run(
-            ["ffmpeg", "-i", video_path, "-c:v", "libx265", "-crf", "35", "-c:a", "copy", reencoded_path],
+            [
+                "ffmpeg",
+                "-i",
+                video_path,
+                "-c:v",
+                "libx265",
+                "-crf",
+                "35",
+                "-c:a",
+                "copy",
+                reencoded_path,
+            ],
             check=True,
             timeout=transcode_timeout,
         )
@@ -805,7 +887,9 @@ def extract_summary_and_description(ai_response):
     # First try to parse as JSON
     try:
         # Sometimes AI responses have extra text before/after JSON, so extract JSON block
-        json_match = re.search(r'\{.*?"summary".*?"video_description".*?\}', ai_response, re.DOTALL)
+        json_match = re.search(
+            r'\{.*?"summary".*?"video_description".*?\}', ai_response, re.DOTALL
+        )
         if json_match:
             json_str = json_match.group(0)
             data = json.loads(json_str)
@@ -822,7 +906,9 @@ def extract_summary_and_description(ai_response):
 
     # Fallback: try the old text-based parsing for backwards compatibility
     # Pattern to find the summary section
-    summary_pattern = r"Summary:\s*(.+?)(?=\n\nVideo Description for Visually Impaired:|$)"
+    summary_pattern = (
+        r"Summary:\s*(.+?)(?=\n\nVideo Description for Visually Impaired:|$)"
+    )
     summary_match = re.search(summary_pattern, ai_response, re.DOTALL | re.IGNORECASE)
 
     # Pattern to find the video description section
@@ -835,7 +921,9 @@ def extract_summary_and_description(ai_response):
     else:
         # Fallback: use everything before "Video Description" or the whole text
         if "Video Description for Visually Impaired:" in ai_response:
-            summary = ai_response.split("Video Description for Visually Impaired:")[0].strip()
+            summary = ai_response.split("Video Description for Visually Impaired:")[
+                0
+            ].strip()
         else:
             # Last fallback: split the response in half
             lines = ai_response.strip().split("\n")
@@ -916,7 +1004,9 @@ def process_video_async(job_manager, job_id):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             update_progress("processing", "Downloading video...")
-            video_path, title, description, uploader, hashtags, platform, mime_type = download_video(url, tmpdir)
+            video_path, title, description, uploader, hashtags, platform, mime_type = (
+                download_video(url, tmpdir)
+            )
 
             update_progress("processing", "Extracting transcript...")
             transcript = extract_transcript_from_platform(url, tmpdir)
@@ -927,7 +1017,9 @@ def process_video_async(job_manager, job_id):
                 update_progress("processing", "Transcribing with Whisper...")
                 transcript = transcribe_video(video_path)
 
-            if not transcript or (isinstance(transcript, str) and transcript.strip() == ""):
+            if not transcript or (
+                isinstance(transcript, str) and transcript.strip() == ""
+            ):
                 transcript = "[No audio/transcript available]"
 
             image_analysis = None
@@ -940,16 +1032,30 @@ def process_video_async(job_manager, job_id):
                     print_flush(f"Warning: Image analysis failed: {e}")
 
             update_progress("processing", "Adding to database...")
-            add_to_database(uploader, title, description, hashtags, platform, transcript, image_analysis)
+            add_to_database(
+                uploader,
+                title,
+                description,
+                hashtags,
+                platform,
+                transcript,
+                image_analysis,
+            )
 
             update_progress("processing", "Generating context summary...")
             context = generate_context_summary(uploader)
 
             update_progress("processing", "Generating AI summary...")
-            ai_response = summarize_text(transcript, description, uploader, image_analysis, context)
+            ai_response = summarize_text(
+                transcript, description, uploader, image_analysis, context
+            )
             summary, video_description = extract_summary_and_description(ai_response)
 
-            enable_transcoding = os.environ.get("ENABLE_TRANSCODING", "").lower() in ("1", "true", "yes")
+            enable_transcoding = os.environ.get("ENABLE_TRANSCODING", "").lower() in (
+                "1",
+                "true",
+                "yes",
+            )
             if enable_transcoding:
                 update_progress("processing", "Checking if transcoding needed...")
                 final_video_path = maybe_reencode(video_path, tmpdir)
@@ -973,7 +1079,9 @@ def process_video_async(job_manager, job_id):
                 result["dry_run"] = True
             else:
                 update_progress("processing", "Posting to Mastodon...")
-                mastodon_url = post_to_mastodon(summary, final_video_path, url, mime_type, video_description)
+                mastodon_url = post_to_mastodon(
+                    summary, final_video_path, url, mime_type, video_description
+                )
                 result["mastodon_url"] = mastodon_url
                 update_progress("completed", "Posted to Mastodon successfully")
 
@@ -982,7 +1090,9 @@ def process_video_async(job_manager, job_id):
     except Exception as e:
         error_msg = str(e)
         print_flush(f"Job {job_id} failed: {error_msg}")
-        job_manager.update_job(job_id, status="failed", error=error_msg, progress=f"Failed: {error_msg}")
+        job_manager.update_job(
+            job_id, status="failed", error=error_msg, progress=f"Failed: {error_msg}"
+        )
 
 
 def create_web_app():
@@ -1128,7 +1238,9 @@ def create_web_app():
             job_id = job_manager.create_job(url, enhance, dry_run)
 
             # Start processing in background thread
-            thread = threading.Thread(target=process_video_async, args=(job_manager, job_id))
+            thread = threading.Thread(
+                target=process_video_async, args=(job_manager, job_id)
+            )
             thread.daemon = True
             thread.start()
 
@@ -1162,26 +1274,32 @@ def extract_video_description(summary_text):
     return description
 
 
-def post_to_mastodon(summary, video_path, source_url, mime_type=None, video_description=None):
+def post_to_mastodon(
+    summary, video_path, source_url, mime_type=None, video_description=None
+):
     size_bytes = os.path.getsize(video_path)
     size_mb = size_bytes / (1024 * 1024)
-    print_flush(f"Video file size before posting: {size_mb:.2f} MB ({size_bytes} bytes)")
+    print_flush(
+        f"Video file size before posting: {size_mb:.2f} MB ({size_bytes} bytes)"
+    )
     auth_token = getenv("AUTH_TOKEN", required=True)
     mastodon_url = getenv("MASTODON_URL", "https://mastodon.social")
     mastodon = Mastodon(access_token=auth_token, api_base_url=mastodon_url)
-    print_flush(f"Uploading video to Mastodon...")
+    print_flush("Uploading video to Mastodon...")
     # ProgressFile class is not used, so removed for clarity
     # Determine mime type if not provided
     if not mime_type:
         mime_type, _ = mimetypes.guess_type(video_path)
         if not mime_type:
             mime_type = "application/octet-stream"
-    media = mastodon.media_post(video_path, mime_type=mime_type, description=video_description)
-    print_flush(f"Waiting for Mastodon to process video...")
+    media = mastodon.media_post(
+        video_path, mime_type=mime_type, description=video_description
+    )
+    print_flush("Waiting for Mastodon to process video...")
     mastodon_timeout = int(getenv("MASTODON_MEDIA_TIMEOUT", "600"))
     print_flush(f"Mastodon media processing timeout: {mastodon_timeout} seconds")
     media = wait_for_media_processing(mastodon, media["id"])
-    print_flush(f"Posting status to Mastodon...")
+    print_flush("Posting status to Mastodon...")
     status_text = f"{summary}\n\nSource: {source_url}"
     print_flush(f"Mastodon post text length: {len(status_text)} characters")
     print_flush(f"Mastodon post text:\n{status_text}")
@@ -1191,11 +1309,17 @@ def post_to_mastodon(summary, video_path, source_url, mime_type=None, video_desc
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Download, transcribe, summarize, and post video.")
+    parser = argparse.ArgumentParser(
+        description="Download, transcribe, summarize, and post video."
+    )
     parser.add_argument("url", nargs="?", help="Video URL (YouTube, Instagram, TikTok)")
-    parser.add_argument("--dry", action="store_true", help="Perform dry run without posting to Mastodon")
     parser.add_argument(
-        "--enhance", action="store_true", help="Extract still images and analyze them for enhanced summarization"
+        "--dry", action="store_true", help="Perform dry run without posting to Mastodon"
+    )
+    parser.add_argument(
+        "--enhance",
+        action="store_true",
+        help="Extract still images and analyze them for enhanced summarization",
     )
     parser.add_argument(
         "--download-whisper-model",
@@ -1205,8 +1329,12 @@ def main():
         help="Download a Whisper model (default: base). Available models: tiny, base, small, medium, large",
     )
     parser.add_argument("--web", action="store_true", help="Start web server mode")
-    parser.add_argument("--port", type=int, default=5000, help="Web server port (default: 5000)")
-    parser.add_argument("--host", default="127.0.0.1", help="Web server host (default: 127.0.0.1)")
+    parser.add_argument(
+        "--port", type=int, default=5000, help="Web server port (default: 5000)"
+    )
+    parser.add_argument(
+        "--host", default="127.0.0.1", help="Web server host (default: 127.0.0.1)"
+    )
     args = parser.parse_args()
 
     # Handle web server mode
@@ -1234,10 +1362,14 @@ def main():
     if args.download_whisper_model is not None:
         try:
             download_whisper_model(args.download_whisper_model)
-            print_flush(f"Whisper model '{args.download_whisper_model}' downloaded successfully")
+            print_flush(
+                f"Whisper model '{args.download_whisper_model}' downloaded successfully"
+            )
             return
         except Exception as e:
-            print_flush(f"Failed to download Whisper model '{args.download_whisper_model}': {e}")
+            print_flush(
+                f"Failed to download Whisper model '{args.download_whisper_model}': {e}"
+            )
             return 1
 
     # Require URL for normal operation
@@ -1247,11 +1379,12 @@ def main():
         )
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        import sys
 
         print_flush(f"Working in temp dir: {tmpdir}")
         print_flush("Starting download...")
-        video_path, title, description, uploader, hashtags, platform, mime_type = download_video(args.url, tmpdir)
+        video_path, title, description, uploader, hashtags, platform, mime_type = (
+            download_video(args.url, tmpdir)
+        )
         print_flush(f"Downloaded video to: {video_path}")
         print_flush(f"Title: {title}")
         print_flush(f"Uploader: {uploader}")
@@ -1290,7 +1423,9 @@ def main():
 
         # Add current video to database
         print_flush("Adding video to database...")
-        add_to_database(uploader, title, description, hashtags, platform, transcript, image_analysis)
+        add_to_database(
+            uploader, title, description, hashtags, platform, transcript, image_analysis
+        )
 
         # Generate context summary from database
         print_flush("Generating context summary...")
@@ -1301,14 +1436,22 @@ def main():
             print_flush("No context available")
 
         print_flush("Starting summarization...")
-        ai_response = summarize_text(transcript, description, uploader, image_analysis, context)
+        ai_response = summarize_text(
+            transcript, description, uploader, image_analysis, context
+        )
         print_flush(f"AI Response:\n{ai_response}")
 
         # Extract summary and video description separately
         summary, video_description = extract_summary_and_description(ai_response)
         print_flush(f"Summary for Toot:\n{summary}")
-        print_flush(f"Video description for visually impaired ({len(video_description)} chars):\n{video_description}")
-        enable_transcoding = os.environ.get("ENABLE_TRANSCODING", "").lower() in ("1", "true", "yes")
+        print_flush(
+            f"Video description for visually impaired ({len(video_description)} chars):\n{video_description}"
+        )
+        enable_transcoding = os.environ.get("ENABLE_TRANSCODING", "").lower() in (
+            "1",
+            "true",
+            "yes",
+        )
         if enable_transcoding:
             print_flush("Transcoding is enabled. Checking if transcoding is needed...")
             final_video_path = maybe_reencode(video_path, tmpdir)
@@ -1324,7 +1467,9 @@ def main():
             print_flush(f"Would use video description: {video_description}")
         else:
             print_flush("Starting Mastodon post...")
-            mastodon_url = post_to_mastodon(summary, final_video_path, args.url, mime_type, video_description)
+            mastodon_url = post_to_mastodon(
+                summary, final_video_path, args.url, mime_type, video_description
+            )
             print_flush(f"Mastodon post URL: {mastodon_url}")
         # Temp files are cleaned up automatically
 

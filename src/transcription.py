@@ -4,7 +4,6 @@
 import os
 import re
 import subprocess
-from pathlib import Path
 
 import whisper
 import yt_dlp
@@ -108,7 +107,9 @@ def transcribe_video(video_path):
             return ""
 
     except subprocess.CalledProcessError:
-        print_flush("Warning: Could not detect audio stream. Attempting transcription anyway...")
+        print_flush(
+            "Warning: Could not detect audio stream. Attempting transcription anyway..."
+        )
 
     try:
         model = get_whisper_model(Config.WHISPER_MODEL)
@@ -116,8 +117,13 @@ def transcribe_video(video_path):
         return result["text"]
     except Exception as e:
         error_msg = str(e)
-        if "Failed to load audio" in error_msg and "does not contain any stream" in error_msg:
-            print_flush("Error: Video file contains no audio stream. Cannot transcribe.")
+        if (
+            "Failed to load audio" in error_msg
+            and "does not contain any stream" in error_msg
+        ):
+            print_flush(
+                "Error: Video file contains no audio stream. Cannot transcribe."
+            )
             return ""
         else:
             # Re-raise other errors
@@ -196,7 +202,9 @@ def extract_transcript_from_platform(url, tmpdir):
                         # Read and parse the subtitle file
                         transcript = parse_subtitle_file(subtitle_path)
                         if transcript.strip():
-                            print_flush("Successfully extracted transcript from platform")
+                            print_flush(
+                                "Successfully extracted transcript from platform"
+                            )
                             return transcript
 
             print_flush("No platform transcripts found or extracted")

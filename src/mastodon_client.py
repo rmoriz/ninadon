@@ -29,10 +29,14 @@ def wait_for_media_processing(mastodon, media_id, timeout=None, poll_interval=2)
 def post_to_mastodon(summary, video_path, source_url, mime_type, video_description):
     """Post video and summary to Mastodon."""
     config = Config()
-    mastodon = Mastodon(access_token=config.MASTODON_ACCESS_TOKEN, api_base_url=config.MASTODON_BASE_URL)
+    mastodon = Mastodon(
+        access_token=config.MASTODON_ACCESS_TOKEN, api_base_url=config.MASTODON_BASE_URL
+    )
 
     print_flush("Uploading video to Mastodon...")
-    media = mastodon.media_post(video_path, mime_type=mime_type, description=video_description)
+    media = mastodon.media_post(
+        video_path, mime_type=mime_type, description=video_description
+    )
     media_id = media["id"]
     print_flush(f"Video uploaded with media_id: {media_id}")
 

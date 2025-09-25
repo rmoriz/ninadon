@@ -81,7 +81,9 @@ def process_video_async(job_manager, job_id):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             update_progress("processing", "Downloading video...")
-            video_path, title, description, uploader, hashtags, platform, mime_type = download_video(url, tmpdir)
+            video_path, title, description, uploader, hashtags, platform, mime_type = (
+                download_video(url, tmpdir)
+            )
 
             update_progress("processing", "Extracting transcript...")
             transcript = extract_transcript_from_platform(url, tmpdir)
@@ -92,7 +94,9 @@ def process_video_async(job_manager, job_id):
                 update_progress("processing", "Transcribing with Whisper...")
                 transcript = transcribe_video(video_path)
 
-            if not transcript or (isinstance(transcript, str) and transcript.strip() == ""):
+            if not transcript or (
+                isinstance(transcript, str) and transcript.strip() == ""
+            ):
                 transcript = "[No audio/transcript available]"
 
             image_analysis = None
@@ -105,13 +109,23 @@ def process_video_async(job_manager, job_id):
                     print_flush(f"Warning: Image analysis failed: {e}")
 
             update_progress("processing", "Adding to database...")
-            add_to_database(uploader, title, description, hashtags, platform, transcript, image_analysis)
+            add_to_database(
+                uploader,
+                title,
+                description,
+                hashtags,
+                platform,
+                transcript,
+                image_analysis,
+            )
 
             update_progress("processing", "Generating context summary...")
             context = generate_context_summary(uploader)
 
             update_progress("processing", "Generating AI summary...")
-            ai_response = summarize_text(transcript, description, uploader, image_analysis, context)
+            ai_response = summarize_text(
+                transcript, description, uploader, image_analysis, context
+            )
             summary, video_description = extract_summary_and_description(ai_response)
 
             if Config.ENABLE_TRANSCODING:
@@ -137,7 +151,9 @@ def process_video_async(job_manager, job_id):
                 result["dry_run"] = True
             else:
                 update_progress("processing", "Posting to Mastodon...")
-                mastodon_url = post_to_mastodon(summary, final_video_path, url, mime_type, video_description)
+                mastodon_url = post_to_mastodon(
+                    summary, final_video_path, url, mime_type, video_description
+                )
                 result["mastodon_url"] = mastodon_url
                 update_progress("completed", "Posted to Mastodon successfully")
 
@@ -146,12 +162,13 @@ def process_video_async(job_manager, job_id):
     except Exception as e:
         error_msg = str(e)
         print_flush(f"Job {job_id} failed: {error_msg}")
-        job_manager.update_job(job_id, status="failed", error=error_msg, progress=f"Failed: {error_msg}")
+        job_manager.update_job(
+            job_id, status="failed", error=error_msg, progress=f"Failed: {error_msg}"
+        )
 
 
 def create_web_app():
     """Create and configure the Flask web application."""
-    from . import __version__
 
     app = Flask(__name__)
     auth = HTTPBasicAuth()
@@ -296,7 +313,9 @@ def create_web_app():
             job_id = job_manager.create_job(url, enhance, dry_run)
 
             # Start processing in background thread
-            thread = threading.Thread(target=process_video_async, args=(job_manager, job_id))
+            thread = threading.Thread(
+                target=process_video_async, args=(job_manager, job_id)
+            )
             thread.daemon = True
             thread.start()
 

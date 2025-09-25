@@ -3,7 +3,6 @@
 
 import json
 import re
-from datetime import datetime
 
 import requests
 
@@ -17,7 +16,9 @@ def generate_context_summary(uploader):
     database = load_database(uploader)
 
     if not database:
-        print_flush(f"No database entries found for {uploader}, skipping context generation")
+        print_flush(
+            f"No database entries found for {uploader}, skipping context generation"
+        )
         return None
 
     # Load existing context to build upon it
@@ -32,7 +33,9 @@ def generate_context_summary(uploader):
         db_content += f"Title: {entry['title']}\n"
         db_content += f"Description: {entry['description']}\n"
         db_content += f"Hashtags: {', '.join(entry['hashtags'])}\n"
-        db_content += f"Transcript: {entry['transcript'][:500]}...\n"  # Limit transcript length
+        db_content += (
+            f"Transcript: {entry['transcript'][:500]}...\n"  # Limit transcript length
+        )
         if entry.get("image_recognition"):
             db_content += f"Image Recognition: {entry['image_recognition'][:300]}...\n"
         db_content += "\n---\n\n"
@@ -54,19 +57,32 @@ def generate_context_summary(uploader):
 
     data = {
         "model": Config.CONTEXT_MODEL,
-        "messages": [{"role": "system", "content": Config.CONTEXT_PROMPT}, {"role": "user", "content": db_content}],
+        "messages": [
+            {"role": "system", "content": Config.CONTEXT_PROMPT},
+            {"role": "user", "content": db_content},
+        ],
     }
 
     import sys
 
     print(f"[OpenRouter CONTEXT REQUEST] URL: {url}", file=sys.stderr)
-    print(f"[OpenRouter CONTEXT REQUEST] Model: {Config.CONTEXT_MODEL}", file=sys.stderr)
-    print(f"[OpenRouter CONTEXT REQUEST] Database entries: {len(database)}", file=sys.stderr)
-    print(f"[OpenRouter CONTEXT REQUEST] Existing context: {'Yes' if existing_context else 'No'}", file=sys.stderr)
+    print(
+        f"[OpenRouter CONTEXT REQUEST] Model: {Config.CONTEXT_MODEL}", file=sys.stderr
+    )
+    print(
+        f"[OpenRouter CONTEXT REQUEST] Database entries: {len(database)}",
+        file=sys.stderr,
+    )
+    print(
+        f"[OpenRouter CONTEXT REQUEST] Existing context: {'Yes' if existing_context else 'No'}",
+        file=sys.stderr,
+    )
 
     try:
         resp = requests.post(url, headers=headers, json=data)
-        print(f"[OpenRouter CONTEXT RESPONSE] Status: {resp.status_code}", file=sys.stderr)
+        print(
+            f"[OpenRouter CONTEXT RESPONSE] Status: {resp.status_code}", file=sys.stderr
+        )
 
         resp.raise_for_status()
         context_summary = resp.json()["choices"][0]["message"]["content"]
@@ -85,7 +101,9 @@ def generate_context_summary(uploader):
         return None
 
 
-def summarize_text(transcript, description, uploader, image_analysis=None, context=None):
+def summarize_text(
+    transcript, description, uploader, image_analysis=None, context=None
+):
     """Generate AI summary of video content using OpenRouter."""
     config = Config()
     url = "https://openrouter.ai/api/v1/chat/completions"
@@ -96,7 +114,9 @@ def summarize_text(transcript, description, uploader, image_analysis=None, conte
         "HTTP-Referer": "https://github.com/rmoriz/ninadon",
     }
 
-    merged_transcript = f"{Config.USER_PROMPT}\n\n{transcript}" if Config.USER_PROMPT else transcript
+    merged_transcript = (
+        f"{Config.USER_PROMPT}\n\n{transcript}" if Config.USER_PROMPT else transcript
+    )
 
     user_content = f"Account name: {uploader}\nDescription: {description}\nTranscript:\n{merged_transcript}"
 
@@ -110,7 +130,10 @@ def summarize_text(transcript, description, uploader, image_analysis=None, conte
 
     data = {
         "model": Config.OPENROUTER_MODEL,
-        "messages": [{"role": "system", "content": Config.SYSTEM_PROMPT}, {"role": "user", "content": user_content}],
+        "messages": [
+            {"role": "system", "content": Config.SYSTEM_PROMPT},
+            {"role": "user", "content": user_content},
+        ],
     }
 
     import sys
@@ -146,7 +169,9 @@ def extract_summary_and_description(ai_response):
     # First try to parse as JSON
     try:
         # Sometimes AI responses have extra text before/after JSON, so extract JSON block
-        json_match = re.search(r'\{.*?"summary".*?"video_description".*?\}', ai_response, re.DOTALL)
+        json_match = re.search(
+            r'\{.*?"summary".*?"video_description".*?\}', ai_response, re.DOTALL
+        )
         if json_match:
             json_str = json_match.group(0)
             data = json.loads(json_str)
@@ -163,7 +188,9 @@ def extract_summary_and_description(ai_response):
 
     # Fallback: try the old text-based parsing for backwards compatibility
     # Pattern to find the summary section
-    summary_pattern = r"Summary:\s*(.+?)(?=\n\nVideo Description for Visually Impaired:|$)"
+    summary_pattern = (
+        r"Summary:\s*(.+?)(?=\n\nVideo Description for Visually Impaired:|$)"
+    )
     summary_match = re.search(summary_pattern, ai_response, re.DOTALL | re.IGNORECASE)
 
     # Pattern to find the video description section
@@ -176,7 +203,9 @@ def extract_summary_and_description(ai_response):
     else:
         # Fallback: use everything before "Video Description" or the whole text
         if "Video Description for Visually Impaired:" in ai_response:
-            summary = ai_response.split("Video Description for Visually Impaired:")[0].strip()
+            summary = ai_response.split("Video Description for Visually Impaired:")[
+                0
+            ].strip()
         else:
             # Last fallback: split the response in half
             lines = ai_response.strip().split("\n")

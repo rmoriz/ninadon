@@ -23,7 +23,9 @@ from .video_downloader import download_video
 from .video_processing import maybe_reencode
 from .web_app import create_web_app
 
-warnings.filterwarnings("ignore", message="FP16 is not supported on CPU; using FP32 instead")
+warnings.filterwarnings(
+    "ignore", message="FP16 is not supported on CPU; using FP32 instead"
+)
 
 
 def process_video(url, enhance=False, dry_run=False):
@@ -43,7 +45,9 @@ def process_video(url, enhance=False, dry_run=False):
 
         # Download video and extract metadata
         print_flush("Downloading video...")
-        video_path, title, description, uploader, hashtags, platform, mime_type = download_video(url, tmpdir)
+        video_path, title, description, uploader, hashtags, platform, mime_type = (
+            download_video(url, tmpdir)
+        )
 
         # Try to get transcript from platform first
         print_flush("Extracting transcript...")
@@ -70,7 +74,9 @@ def process_video(url, enhance=False, dry_run=False):
 
         # Store in database
         print_flush("Adding to database...")
-        add_to_database(uploader, title, description, hashtags, platform, transcript, image_analysis)
+        add_to_database(
+            uploader, title, description, hashtags, platform, transcript, image_analysis
+        )
 
         # Generate context summary
         print_flush("Generating context summary...")
@@ -78,7 +84,9 @@ def process_video(url, enhance=False, dry_run=False):
 
         # Generate AI summary
         print_flush("Generating AI summary...")
-        ai_response = summarize_text(transcript, description, uploader, image_analysis, context)
+        ai_response = summarize_text(
+            transcript, description, uploader, image_analysis, context
+        )
         summary, video_description = extract_summary_and_description(ai_response)
 
         # Handle video transcoding if enabled
@@ -106,7 +114,9 @@ def process_video(url, enhance=False, dry_run=False):
             result["dry_run"] = True
         else:
             print_flush("Posting to Mastodon...")
-            mastodon_url = post_to_mastodon(summary, final_video_path, url, mime_type, video_description)
+            mastodon_url = post_to_mastodon(
+                summary, final_video_path, url, mime_type, video_description
+            )
             result["mastodon_url"] = mastodon_url
             print_flush(f"Posted successfully: {mastodon_url}")
 
@@ -122,7 +132,9 @@ def main():
     parser.add_argument("--enhance", action="store_true", help="Enable image analysis")
     parser.add_argument("--dry-run", action="store_true", help="Don't post to Mastodon")
     parser.add_argument("--web", action="store_true", help="Start web interface")
-    parser.add_argument("--port", type=int, default=Config.WEB_PORT, help="Web interface port")
+    parser.add_argument(
+        "--port", type=int, default=Config.WEB_PORT, help="Web interface port"
+    )
     parser.add_argument("--version", action="version", version=f"Ninadon {__version__}")
 
     args = parser.parse_args()

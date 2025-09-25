@@ -54,7 +54,9 @@ def save_database(uploader, database):
         print_flush(f"Warning: Could not save database for {uploader}: {e}")
 
 
-def add_to_database(uploader, title, description, hashtags, platform, transcript, image_analysis=None):
+def add_to_database(
+    uploader, title, description, hashtags, platform, transcript, image_analysis=None
+):
     """Add a new entry to the user's database or update existing entry if video already exists."""
     database = load_database(uploader)
 
