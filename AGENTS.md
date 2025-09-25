@@ -34,8 +34,8 @@
 - **Install dependencies:** `pip install -r requirements.txt`
 - **Install Deno:** Ensure Deno is installed (required for future yt-dlp versions)
 - **Build Docker image:** `docker build .`
-- **Run app:** `python src/main.py <video_url>`
-- **Run web interface:** `python src/main.py --web`
+- **Run app:** `python -m src.main <video_url>`
+- **Run web interface:** `python -m src.main --web`
 
 ## Code Style Guidelines
 - **Imports:** Standard library, then third-party, then local imports.
