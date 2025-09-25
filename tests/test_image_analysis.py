@@ -164,9 +164,14 @@ class TestAnalyzeImagesWithOpenrouter:
             "choices": [{"message": {"content": "Analysis result"}}]
         }
         
-        with patch('src.image_analysis.Config', return_value=mock_config), \
+        with patch('src.image_analysis.Config') as mock_config_class, \
+             patch('src.image_analysis.Config.ENHANCE_MODEL', "test_model"), \
+             patch('src.image_analysis.Config.IMAGE_ANALYSIS_PROMPT', "Test prompt"), \
              patch('requests.post', return_value=mock_response) as mock_post, \
              patch('src.image_analysis.encode_image_to_base64') as mock_encode:
+
+            mock_config_instance = mock_config_class.return_value
+            mock_config_instance.OPENROUTER_API_KEY = "test_api_key"
             
             # Mock base64 encoding
             mock_encode.side_effect = lambda path: f"base64_data_for_{os.path.basename(path)}"

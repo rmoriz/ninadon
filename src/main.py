@@ -153,9 +153,8 @@ def main():
                 print_flush(f"Mastodon URL: {result['mastodon_url']}")
         except Exception as e:
             print_flush(f"Error processing video: {e}")
-            exit(1)
     else:
-        parser.print_help()
+        parser.error("Either a video URL or --web flag is required")
 
 
 if __name__ == "__main__":

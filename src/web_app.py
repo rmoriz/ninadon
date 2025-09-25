@@ -177,9 +177,10 @@ def create_web_app():
     # Basic auth setup
     @auth.verify_password
     def verify_password(username, password):
-        if not Config.WEB_USER or not Config.WEB_PASSWORD:
+        config = Config()
+        if not config.WEB_USER or not config.WEB_PASSWORD:
             return True  # No auth configured
-        return username == Config.WEB_USER and password == Config.WEB_PASSWORD
+        return username == config.WEB_USER and password == config.WEB_PASSWORD
 
     # Simple HTML interface
     HTML_TEMPLATE = """

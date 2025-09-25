@@ -288,59 +288,63 @@ class TestCreateWebApp:
     
     def test_index_route_no_auth(self):
         """Test index route without authentication."""
-        with patch('src.web_app.Config') as mock_config:
-            mock_config.WEB_USER = None
-            mock_config.WEB_PASSWORD = None
-            
+        with patch('src.web_app.Config') as mock_config_class:
+            mock_config_instance = mock_config_class.return_value
+            mock_config_instance.WEB_USER = None
+            mock_config_instance.WEB_PASSWORD = None
+
             app = create_web_app()
             client = app.test_client()
-            
+
             response = client.get('/')
             assert response.status_code == 200
             assert b'Ninadon Video Processor' in response.data
     
     def test_index_route_with_auth_no_credentials(self):
         """Test index route with auth but no credentials provided."""
-        with patch('src.web_app.Config') as mock_config:
-            mock_config.WEB_USER = "testuser"
-            mock_config.WEB_PASSWORD = "testpass"
-            
+        with patch('src.web_app.Config') as mock_config_class:
+            mock_config_instance = mock_config_class.return_value
+            mock_config_instance.WEB_USER = "testuser"
+            mock_config_instance.WEB_PASSWORD = "testpass"
+
             app = create_web_app()
             client = app.test_client()
-            
+
             response = client.get('/')
             assert response.status_code == 401
     
     def test_index_route_with_auth_valid_credentials(self):
         """Test index route with valid credentials."""
-        with patch('src.web_app.Config') as mock_config:
-            mock_config.WEB_USER = "testuser"
-            mock_config.WEB_PASSWORD = "testpass"
-            
+        with patch('src.web_app.Config') as mock_config_class:
+            mock_config_instance = mock_config_class.return_value
+            mock_config_instance.WEB_USER = "testuser"
+            mock_config_instance.WEB_PASSWORD = "testpass"
+
             app = create_web_app()
             client = app.test_client()
-            
+
             import base64
             credentials = base64.b64encode(b'testuser:testpass').decode('utf-8')
             headers = {'Authorization': f'Basic {credentials}'}
-            
+
             response = client.get('/', headers=headers)
             assert response.status_code == 200
             assert b'Ninadon Video Processor' in response.data
     
     def test_api_process_missing_url(self):
         """Test API process endpoint with missing URL."""
-        with patch('src.web_app.Config') as mock_config:
-            mock_config.WEB_USER = None
-            mock_config.WEB_PASSWORD = None
-            
+        with patch('src.web_app.Config') as mock_config_class:
+            mock_config_instance = mock_config_class.return_value
+            mock_config_instance.WEB_USER = None
+            mock_config_instance.WEB_PASSWORD = None
+
             app = create_web_app()
             client = app.test_client()
-            
-            response = client.post('/api/process', 
-                                 data=json.dumps({}), 
+
+            response = client.post('/api/process',
+                                 data=json.dumps({}),
                                  content_type='application/json')
-            
+
             assert response.status_code == 400
             data = json.loads(response.data)
             assert 'error' in data
@@ -348,11 +352,12 @@ class TestCreateWebApp:
     
     def test_api_process_success(self):
         """Test successful API process request."""
-        with patch('src.web_app.Config') as mock_config, \
+        with patch('src.web_app.Config') as mock_config_class, \
              patch('threading.Thread') as mock_thread:
-            
-            mock_config.WEB_USER = None
-            mock_config.WEB_PASSWORD = None
+
+            mock_config_instance = mock_config_class.return_value
+            mock_config_instance.WEB_USER = None
+            mock_config_instance.WEB_PASSWORD = None
             
             app = create_web_app()
             client = app.test_client()
@@ -378,40 +383,42 @@ class TestCreateWebApp:
     
     def test_api_jobs_empty(self):
         """Test API jobs endpoint with no jobs."""
-        with patch('src.web_app.Config') as mock_config:
-            mock_config.WEB_USER = None
-            mock_config.WEB_PASSWORD = None
-            
+        with patch('src.web_app.Config') as mock_config_class:
+            mock_config_instance = mock_config_class.return_value
+            mock_config_instance.WEB_USER = None
+            mock_config_instance.WEB_PASSWORD = None
+
             app = create_web_app()
             client = app.test_client()
-            
+
             response = client.get('/api/jobs')
             assert response.status_code == 200
-            
+
             data = json.loads(response.data)
             assert data == []
     
     def test_api_jobs_with_jobs(self):
         """Test API jobs endpoint with existing jobs."""
-        with patch('src.web_app.Config') as mock_config, \
-             patch('threading.Thread'):
-            
-            mock_config.WEB_USER = None
-            mock_config.WEB_PASSWORD = None
-            
+        with patch('src.web_app.Config') as mock_config_class, \
+              patch('threading.Thread'):
+
+            mock_config_instance = mock_config_class.return_value
+            mock_config_instance.WEB_USER = None
+            mock_config_instance.WEB_PASSWORD = None
+
             app = create_web_app()
             client = app.test_client()
-            
+
             # Create a job first
             request_data = {'url': 'https://example.com/video'}
             client.post('/api/process',
-                       data=json.dumps(request_data),
-                       content_type='application/json')
-            
+                        data=json.dumps(request_data),
+                        content_type='application/json')
+
             # Get jobs
             response = client.get('/api/jobs')
             assert response.status_code == 200
-            
+
             data = json.loads(response.data)
             assert len(data) == 1
             assert data[0]['url'] == 'https://example.com/video'
@@ -419,59 +426,62 @@ class TestCreateWebApp:
     
     def test_api_job_status_exists(self):
         """Test API job status endpoint for existing job."""
-        with patch('src.web_app.Config') as mock_config, \
-             patch('threading.Thread'):
-            
-            mock_config.WEB_USER = None
-            mock_config.WEB_PASSWORD = None
-            
+        with patch('src.web_app.Config') as mock_config_class, \
+              patch('threading.Thread'):
+
+            mock_config_instance = mock_config_class.return_value
+            mock_config_instance.WEB_USER = None
+            mock_config_instance.WEB_PASSWORD = None
+
             app = create_web_app()
             client = app.test_client()
-            
+
             # Create a job
             request_data = {'url': 'https://example.com/video'}
             response = client.post('/api/process',
-                                 data=json.dumps(request_data),
-                                 content_type='application/json')
-            
+                                  data=json.dumps(request_data),
+                                  content_type='application/json')
+
             job_id = json.loads(response.data)['job_id']
-            
+
             # Get job status
             response = client.get(f'/api/jobs/{job_id}')
             assert response.status_code == 200
-            
+
             data = json.loads(response.data)
             assert data['id'] == job_id
             assert data['url'] == 'https://example.com/video'
     
     def test_api_job_status_not_found(self):
         """Test API job status endpoint for non-existent job."""
-        with patch('src.web_app.Config') as mock_config:
-            mock_config.WEB_USER = None
-            mock_config.WEB_PASSWORD = None
-            
+        with patch('src.web_app.Config') as mock_config_class:
+            mock_config_instance = mock_config_class.return_value
+            mock_config_instance.WEB_USER = None
+            mock_config_instance.WEB_PASSWORD = None
+
             app = create_web_app()
             client = app.test_client()
-            
+
             response = client.get('/api/jobs/nonexistent-job-id')
             assert response.status_code == 404
-            
+
             data = json.loads(response.data)
             assert 'error' in data
             assert 'Job not found' in data['error']
     
     def test_html_template_content(self):
         """Test that HTML template contains expected content."""
-        with patch('src.web_app.Config') as mock_config:
-            mock_config.WEB_USER = None
-            mock_config.WEB_PASSWORD = None
-            
+        with patch('src.web_app.Config') as mock_config_class:
+            mock_config_instance = mock_config_class.return_value
+            mock_config_instance.WEB_USER = None
+            mock_config_instance.WEB_PASSWORD = None
+
             app = create_web_app()
             client = app.test_client()
-            
+
             response = client.get('/')
             html_content = response.data.decode('utf-8')
-            
+
             # Check for key elements
             assert 'Ninadon Video Processor' in html_content
             assert 'Video URL (YouTube, TikTok, Instagram)' in html_content
@@ -482,18 +492,19 @@ class TestCreateWebApp:
     
     def test_api_process_exception_handling(self):
         """Test API process endpoint exception handling."""
-        with patch('src.web_app.Config') as mock_config:
-            mock_config.WEB_USER = None
-            mock_config.WEB_PASSWORD = None
-            
+        with patch('src.web_app.Config') as mock_config_class:
+            mock_config_instance = mock_config_class.return_value
+            mock_config_instance.WEB_USER = None
+            mock_config_instance.WEB_PASSWORD = None
+
             app = create_web_app()
             client = app.test_client()
-            
+
             # Send invalid JSON
             response = client.post('/api/process',
                                  data='invalid json',
                                  content_type='application/json')
-            
+
             assert response.status_code == 500
             data = json.loads(response.data)
             assert 'error' in data
@@ -504,11 +515,12 @@ class TestWebAppIntegration:
     
     def test_complete_job_workflow(self):
         """Test complete job workflow through web interface."""
-        with patch('src.web_app.Config') as mock_config, \
+        with patch('src.web_app.Config') as mock_config_class, \
              patch('src.web_app.process_video_async') as mock_process:
-            
-            mock_config.WEB_USER = None
-            mock_config.WEB_PASSWORD = None
+
+            mock_config_instance = mock_config_class.return_value
+            mock_config_instance.WEB_USER = None
+            mock_config_instance.WEB_PASSWORD = None
             
             def mock_process_func(manager, job_id):
                 # Simulate successful processing

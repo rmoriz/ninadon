@@ -56,8 +56,8 @@ def select_filepath(info, ydl):
 
 def fix_downloaded_filepath(filepath, tmpdir):
     """Fix problematic file paths after download, especially .NA extensions."""
-    # Check if the file exists as-is
-    if filepath and os.path.exists(filepath):
+    # Check if the file exists as-is and is not a .NA file
+    if filepath and os.path.exists(filepath) and not filepath.endswith(".NA"):
         return filepath
 
     # If filepath is None or file doesn't exist, search for any video file in tmpdir

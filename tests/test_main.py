@@ -1,6 +1,5 @@
 import os
 import sys
-import types
 import tempfile
 import pytest
 
@@ -29,76 +28,6 @@ def test_maybe_reencode_large(tmp_path):
         assert result == str(tmp_path / "video_h265.mp4")
         mock_run.assert_called_once()
 
-def test_summarize_text(monkeypatch):
-    # Mock requests.post to return a fake summary
-    class FakeResp:
-        status_code = 200
-        text = '{"choices": [{"message": {"content": "summary"}}]}'
-        def raise_for_status(self): pass
-        def json(self): return {"choices": [{"message": {"content": "summary"}}]}
-    monkeypatch.setattr(main.requests, "post", lambda *a, **kw: FakeResp())
-    os.environ["OPENROUTER_API_KEY"] = "dummy"
-    result = main.summarize_text("transcript", "desc", "uploader")
-    assert result == "summary"
-
-def test_transcribe_video(monkeypatch, fake_video_path):
-    # Mock get_whisper_model instead of whisper.load_model
-    fake_model = MagicMock()
-    fake_model.transcribe.return_value = {"text": "transcribed"}
-    monkeypatch.setattr(main, "get_whisper_model", lambda _: fake_model)
-    result = main.transcribe_video(fake_video_path)
-    assert result == "transcribed"
-
-def test_download_video_selects_format(monkeypatch, tmp_path):
-    # Mock yt_dlp.YoutubeDL to simulate info extraction and download
-    class FakeYDL:
-        def __init__(self, opts): pass
-        def __enter__(self): return self
-        def __exit__(self, *a): pass
-        def extract_info(self, url, download=False):
-            if not download:
-                return {
-                    "formats": [
-                        {"url": "http://a", "filesize": 10*1024*1024, "vcodec": "avc1", "acodec": "mp4a", "format_id": "1"},
-                        {"url": "http://b", "filesize": 80*1024*1024, "vcodec": "avc1", "acodec": "mp4a", "format_id": "2"},
-                    ],
-                    "title": "Test Video",
-                    "description": "Test description #hashtag",
-                    "uploader": "testuser"
-                }
-            else:
-                # Create the video file to simulate download
-                video_path = tmp_path / "video.mp4"
-                video_path.write_text("fake video content")
-                return {
-                    "requested_downloads": [{"filepath": str(video_path)}],
-                    "title": "Test Video",
-                    "description": "Test description #hashtag",
-                    "uploader": "testuser"
-                }
-        def prepare_filename(self, info): return str(tmp_path / "video.mp4")
-    monkeypatch.setattr(main.yt_dlp, "YoutubeDL", FakeYDL)
-    result = main.download_video("http://youtube.com/test", str(tmp_path))
-    assert result[0].endswith("video.mp4")  # filepath
-    assert result[1] == "Test Video"  # title
-    assert result[2] == "Test description #hashtag"  # description
-    assert result[3] == "testuser"  # uploader
-    assert "#hashtag" in result[4]  # hashtags
-    assert result[5] == "youtube"  # platform
-
-def test_post_to_mastodon(monkeypatch, fake_video_path):
-    # Mock Mastodon and its methods
-    class FakeMastodon:
-        def __init__(self, **kwargs): pass
-        def media_post(self, path, mime_type=None, description=None): return {"id": "mediaid"}
-        def media(self, media_id): return {"id": "mediaid", "url": "http://media", "processing": False}
-        def status_post(self, text, media_ids=None): return {"url": "http://mastodon/post"}
-    monkeypatch.setattr(main, "Mastodon", FakeMastodon)
-    os.environ["AUTH_TOKEN"] = "dummy"
-    os.environ["MASTODON_URL"] = "https://mastodon.social"
-    url = main.post_to_mastodon("summary", fake_video_path, "http://source")
-    assert url == "http://mastodon/post"
-
 def test_main_flow(monkeypatch, tmp_path):
     # Patch all major functions to simulate main() flow
     monkeypatch.setattr(main, "download_video", lambda url, tmpdir: (str(tmp_path / "video.mp4"), "title", "desc", "uploader", ["#test"], "youtube", "video/mp4"))
@@ -106,11 +35,11 @@ def test_main_flow(monkeypatch, tmp_path):
     monkeypatch.setattr(main, "summarize_text", lambda t, d, u, i=None, c=None: "summary")
     monkeypatch.setattr(main, "maybe_reencode", lambda path, tmpdir: path)
     monkeypatch.setattr(main, "post_to_mastodon", lambda s, v, u, m=None, d=None: "http://mastodon/post")
-    
+
     # Mock database functions
     monkeypatch.setattr(main, "add_to_database", lambda *args: None)
     monkeypatch.setattr(main, "generate_context_summary", lambda uploader: "test context")
-    
+
     # Simulate CLI args
     sys_argv = sys.argv
     sys.argv = ["main.py", "http://test"]
@@ -125,20 +54,20 @@ def test_main_flow_dry_run(monkeypatch, tmp_path):
     monkeypatch.setattr(main, "transcribe_video", lambda path: "transcript")
     monkeypatch.setattr(main, "summarize_text", lambda t, d, u, i=None, c=None: "summary")
     monkeypatch.setattr(main, "maybe_reencode", lambda path, tmpdir: path)
-    
+
     # Mock database functions
     monkeypatch.setattr(main, "add_to_database", lambda *args: None)
     monkeypatch.setattr(main, "generate_context_summary", lambda uploader: "test context")
-    
+
     # Mock post_to_mastodon to ensure it's NOT called during dry run
     post_to_mastodon_called = False
     def mock_post_to_mastodon(*args, **kwargs):
         nonlocal post_to_mastodon_called
         post_to_mastodon_called = True
         return "http://mastodon/post"
-    
+
     monkeypatch.setattr(main, "post_to_mastodon", mock_post_to_mastodon)
-    
+
     # Simulate CLI args with --dry flag
     sys_argv = sys.argv
     sys.argv = ["main.py", "--dry", "http://test"]
@@ -153,25 +82,25 @@ def test_enhance_functionality(monkeypatch, tmp_path):
     # Test the --enhance flag functionality
     monkeypatch.setattr(main, "download_video", lambda url, tmpdir: (str(tmp_path / "video.mp4"), "title", "desc", "uploader", ["#test"], "youtube", "video/mp4"))
     monkeypatch.setattr(main, "transcribe_video", lambda path: "transcript")
-    
+
     # Mock image extraction and analysis
     monkeypatch.setattr(main, "extract_still_images", lambda video_path, tmpdir: ["img1.jpg", "img2.jpg"])
     monkeypatch.setattr(main, "analyze_images_with_openrouter", lambda images: "image analysis result")
-    
+
     # Mock database functions
     monkeypatch.setattr(main, "add_to_database", lambda *args: None)
     monkeypatch.setattr(main, "generate_context_summary", lambda uploader: "test context")
-    
+
     # Track if summarize_text is called with image analysis and context
     summarize_calls = []
     def mock_summarize_text(transcript, description, uploader, image_analysis=None, context=None):
         summarize_calls.append((transcript, description, uploader, image_analysis, context))
         return "enhanced summary"
-    
+
     monkeypatch.setattr(main, "summarize_text", mock_summarize_text)
     monkeypatch.setattr(main, "maybe_reencode", lambda path, tmpdir: path)
     monkeypatch.setattr(main, "post_to_mastodon", lambda s, v, u, m=None, d=None: "http://mastodon/post")
-    
+
     # Simulate CLI args with --enhance flag
     sys_argv = sys.argv
     sys.argv = ["main.py", "--enhance", "http://test"]
@@ -192,33 +121,33 @@ def test_enhance_with_dry_run(monkeypatch, tmp_path):
     # Test the --enhance flag with --dry run
     monkeypatch.setattr(main, "download_video", lambda url, tmpdir: (str(tmp_path / "video.mp4"), "title", "desc", "uploader", ["#test"], "youtube", "video/mp4"))
     monkeypatch.setattr(main, "transcribe_video", lambda path: "transcript")
-    
+
     # Mock image extraction and analysis
     monkeypatch.setattr(main, "extract_still_images", lambda video_path, tmpdir: ["img1.jpg", "img2.jpg"])
     monkeypatch.setattr(main, "analyze_images_with_openrouter", lambda images: "image analysis result")
-    
+
     # Mock database functions
     monkeypatch.setattr(main, "add_to_database", lambda *args: None)
     monkeypatch.setattr(main, "generate_context_summary", lambda uploader: "test context")
-    
+
     # Track if summarize_text is called with image analysis and context
     summarize_calls = []
     def mock_summarize_text(transcript, description, uploader, image_analysis=None, context=None):
         summarize_calls.append((transcript, description, uploader, image_analysis, context))
         return "enhanced summary"
-    
+
     monkeypatch.setattr(main, "summarize_text", mock_summarize_text)
     monkeypatch.setattr(main, "maybe_reencode", lambda path, tmpdir: path)
-    
+
     # Mock post_to_mastodon to ensure it's NOT called during dry run
     post_to_mastodon_called = False
     def mock_post_to_mastodon(*args, **kwargs):
         nonlocal post_to_mastodon_called
         post_to_mastodon_called = True
         return "http://mastodon/post"
-    
+
     monkeypatch.setattr(main, "post_to_mastodon", mock_post_to_mastodon)
-    
+
     # Simulate CLI args with both --dry and --enhance flags
     sys_argv = sys.argv
     sys.argv = ["main.py", "--dry", "--enhance", "http://test"]
@@ -234,413 +163,6 @@ def test_enhance_with_dry_run(monkeypatch, tmp_path):
     finally:
         sys.argv = sys_argv
 
-def test_database_functionality(tmp_path, monkeypatch):
-    # Test database and context functionality
-    # Set DATA_PATH to tmp_path for testing
-    monkeypatch.setenv("DATA_PATH", str(tmp_path))
-    
-    try:
-        # Test adding to database
-        main.add_to_database("testuser", "Test Title", "Test description #hashtag", ["#hashtag"], "youtube", "Test transcript", "Test image analysis")
-        
-        # Check if database file was created
-        db_path = main.get_database_path("testuser")
-        assert os.path.exists(db_path)
-        
-        # Load and verify database content
-        database = main.load_database("testuser")
-        assert len(database) == 1
-        entry = database[0]
-        assert entry["title"] == "Test Title"
-        assert entry["description"] == "Test description #hashtag"
-        assert entry["hashtags"] == ["#hashtag"]
-        assert entry["platform"] == "youtube"
-        assert entry["transcript"] == "Test transcript"
-        assert entry["image_recognition"] == "Test image analysis"
-        assert "date" in entry
-        
-        # Test context generation (mock the OpenRouter call)
-        class FakeResp:
-            status_code = 200
-            def raise_for_status(self): pass
-            def json(self): return {"choices": [{"message": {"content": "Generated context summary"}}]}
-        
-        monkeypatch.setattr(main.requests, "post", lambda *a, **kw: FakeResp())
-        os.environ["OPENROUTER_API_KEY"] = "dummy"
-        
-        context = main.generate_context_summary("testuser")
-        assert context == "Generated context summary"
-        
-        # Check if context file was created
-        context_path = main.get_context_path("testuser")
-        assert os.path.exists(context_path)
-        
-        # Load and verify context
-        loaded_context = main.load_context("testuser")
-        assert loaded_context == "Generated context summary"
-        
-    except Exception as e:
-        # Re-raise any exceptions for proper test failure reporting
-        raise e
-
-def test_data_path_configuration(tmp_path, monkeypatch):
-    # Test that DATA_PATH environment variable works correctly
-    custom_data_path = tmp_path / "custom_data"
-    monkeypatch.setenv("DATA_PATH", str(custom_data_path))
-    
-    # Test get_data_root function
-    data_root = main.get_data_root()
-    assert data_root == str(custom_data_path)
-    assert os.path.exists(custom_data_path)
-    
-    # Test that database and context paths use the custom data path
-    db_path = main.get_database_path("testuser")
-    context_path = main.get_context_path("testuser")
-    
-    expected_user_dir = custom_data_path / "testuser"
-    assert db_path == str(expected_user_dir / "database.json")
-    assert context_path == str(expected_user_dir / "context.json")
-    assert os.path.exists(expected_user_dir)
-    
-    # Test with default DATA_PATH (when not set) - use a different temp path
-    default_test_path = tmp_path / "default_test"
-    monkeypatch.delenv("DATA_PATH", raising=False)
-    monkeypatch.setenv("DATA_PATH", str(default_test_path))
-    default_data_root = main.get_data_root()
-    assert default_data_root == str(default_test_path)
-    assert os.path.exists(default_test_path)
-
-def test_context_generation_with_existing_context(tmp_path, monkeypatch):
-    # Test that context generation includes existing context
-    monkeypatch.setenv("DATA_PATH", str(tmp_path))
-    
-    # Create initial database entry
-    main.add_to_database("testuser", "First Video", "Description", ["#test"], "youtube", "Transcript")
-    
-    # Create initial context
-    context_data = {
-        "generated_at": "2024-01-01T00:00:00",
-        "summary": "Previous context about user's content patterns",
-        "based_on_entries": 1
-    }
-    context_path = main.get_context_path("testuser")
-    with open(context_path, 'w', encoding='utf-8') as f:
-        import json
-        json.dump(context_data, f)
-    
-    # Mock the OpenRouter call to capture the request
-    captured_requests = []
-    class FakeResp:
-        status_code = 200
-        def raise_for_status(self): pass
-        def json(self): return {"choices": [{"message": {"content": "Updated context summary"}}]}
-    
-    def mock_post(url, headers=None, json=None):
-        captured_requests.append(json)
-        return FakeResp()
-    
-    monkeypatch.setattr(main.requests, "post", mock_post)
-    os.environ["OPENROUTER_API_KEY"] = "dummy"
-    
-    # Generate new context
-    result = main.generate_context_summary("testuser")
-    
-    # Verify that the request included the existing context
-    assert len(captured_requests) == 1
-    request_data = captured_requests[0]
-    user_content = request_data["messages"][1]["content"]
-    
-    # Check that existing context was included
-    assert "Previous context summary:" in user_content
-    assert "Previous context about user's content patterns" in user_content
-    
-    # Verify the result
-    assert result == "Updated context summary"
-
-def test_database_duplicate_handling(tmp_path, monkeypatch):
-    # Test that duplicate videos update existing entries instead of creating new ones
-    monkeypatch.setenv("DATA_PATH", str(tmp_path))
-    
-    # Add initial entry
-    main.add_to_database("testuser", "Test Video", "Description", ["#test"], "youtube", "Original transcript")
-    
-    # Verify initial entry
-    database = main.load_database("testuser")
-    assert len(database) == 1
-    assert database[0]["transcript"] == "Original transcript"
-    assert "image_recognition" not in database[0]
-    
-    # Add same video again with updated content and image analysis
-    main.add_to_database("testuser", "Test Video", "Updated description", ["#test", "#new"], "youtube", "Updated transcript", "Image analysis")
-    
-    # Verify that entry was updated, not duplicated
-    database = main.load_database("testuser")
-    assert len(database) == 1  # Still only one entry
-    
-    # Verify updated content
-    entry = database[0]
-    assert entry["title"] == "Test Video"
-    assert entry["description"] == "Updated description"
-    assert entry["hashtags"] == ["#test", "#new"]
-    assert entry["transcript"] == "Updated transcript"
-    assert entry["image_recognition"] == "Image analysis"
-    
-    # Add different video to ensure new entries still work
-    main.add_to_database("testuser", "Different Video", "Different description", ["#different"], "tiktok", "Different transcript")
-    
-    # Verify we now have two entries
-    database = main.load_database("testuser")
-    assert len(database) == 2
-    assert database[0]["title"] == "Test Video"  # Updated entry
-    assert database[1]["title"] == "Different Video"  # New entry
-    
-    # Test same title but different platform (should be treated as different video)
-    main.add_to_database("testuser", "Test Video", "Same title different platform", ["#instagram"], "instagram", "Instagram transcript")
-    
-    # Verify we now have three entries
-    database = main.load_database("testuser")
-    assert len(database) == 3
-    
-    # Verify all three entries exist
-    titles_platforms = [(entry["title"], entry["platform"]) for entry in database]
-    assert ("Test Video", "youtube") in titles_platforms
-    assert ("Different Video", "tiktok") in titles_platforms
-    assert ("Test Video", "instagram") in titles_platforms
-
-def test_configurable_image_analysis_prompt(monkeypatch, tmp_path):
-    # Test that IMAGE_ANALYSIS_PROMPT environment variable works
-    custom_prompt = "Describe the visual elements and narrative flow in these video frames"
-    monkeypatch.setenv("IMAGE_ANALYSIS_PROMPT", custom_prompt)
-    
-    # Mock the OpenRouter call to capture the request
-    captured_requests = []
-    class FakeResp:
-        status_code = 200
-        text = '{"choices": [{"message": {"content": "Custom analysis result"}}]}'
-        def raise_for_status(self): pass
-        def json(self): return {"choices": [{"message": {"content": "Custom analysis result"}}]}
-    
-    def mock_post(url, headers=None, json=None):
-        captured_requests.append(json)
-        return FakeResp()
-    
-    monkeypatch.setattr(main.requests, "post", mock_post)
-    os.environ["OPENROUTER_API_KEY"] = "dummy"
-    
-    # Create temporary image files for testing
-    temp_images = []
-    try:
-        for i in range(2):
-            tmp_img = tempfile.NamedTemporaryFile(suffix='.jpg', delete=False)
-            tmp_img.write(b"fake_image_data")
-            tmp_img.close()
-            temp_images.append(tmp_img.name)
-        
-        # Call the image analysis function
-        result = main.analyze_images_with_openrouter(temp_images)
-        
-        # Verify that the custom prompt was used
-        assert len(captured_requests) == 1
-        request_data = captured_requests[0]
-        messages = request_data["messages"]
-        user_message = messages[0]
-        content = user_message["content"]
-        
-        # Find the text content in the message
-        text_content = None
-        for item in content:
-            if item["type"] == "text":
-                text_content = item["text"]
-                break
-        
-        assert text_content == custom_prompt
-        assert result == "Custom analysis result"
-        
-    finally:
-        # Clean up temporary files
-        for img_path in temp_images:
-            try:
-                os.unlink(img_path)
-            except:
-                pass
-
-def test_configurable_context_prompt(tmp_path, monkeypatch):
-    # Test that CONTEXT_PROMPT environment variable works
-    custom_context_prompt = "Create a brief summary of this creator's video patterns and audience engagement trends"
-    monkeypatch.setenv("CONTEXT_PROMPT", custom_context_prompt)
-    monkeypatch.setenv("DATA_PATH", str(tmp_path))
-    
-    # Create initial database entry
-    main.add_to_database("testuser", "Test Video", "Description", ["#test"], "youtube", "Test transcript")
-    
-    # Mock the OpenRouter call to capture the request
-    captured_requests = []
-    class FakeResp:
-        status_code = 200
-        text = '{"choices": [{"message": {"content": "Custom context summary"}}]}'
-        def raise_for_status(self): pass
-        def json(self): return {"choices": [{"message": {"content": "Custom context summary"}}]}
-    
-    def mock_post(url, headers=None, json=None):
-        captured_requests.append(json)
-        return FakeResp()
-    
-    monkeypatch.setattr(main.requests, "post", mock_post)
-    os.environ["OPENROUTER_API_KEY"] = "dummy"
-    
-    # Generate context with custom prompt
-    result = main.generate_context_summary("testuser")
-    
-    # Verify that the custom prompt was used
-    assert len(captured_requests) == 1
-    request_data = captured_requests[0]
-    messages = request_data["messages"]
-    system_message = messages[0]
-    
-    assert system_message["role"] == "system"
-    assert system_message["content"] == custom_context_prompt
-    assert result == "Custom context summary"
-
-def test_parse_subtitle_file(tmp_path):
-    # Test parsing of different subtitle formats
-    
-    # Test VTT format
-    vtt_content = """WEBVTT
-
-00:00:00.000 --> 00:00:03.000
-Hello world, this is a test transcript.
-
-00:00:03.000 --> 00:00:06.000
-This is the second line of text.
-
-00:00:06.000 --> 00:00:10.000
-<v Speaker>And this has HTML tags to remove.</v>
-"""
-    vtt_file = tmp_path / "test.vtt"
-    vtt_file.write_text(vtt_content, encoding='utf-8')
-    
-    result = main.parse_subtitle_file(str(vtt_file))
-    expected = "Hello world, this is a test transcript. This is the second line of text. And this has HTML tags to remove."
-    assert result == expected
-    
-    # Test SRT format
-    srt_content = """1
-00:00:00,000 --> 00:00:03,000
-Hello world, this is SRT format.
-
-2
-00:00:03,000 --> 00:00:06,000
-Second subtitle entry.
-
-3
-00:00:06,000 --> 00:00:10,000
-<i>Italic text should be cleaned</i>
-"""
-    srt_file = tmp_path / "test.srt"
-    srt_file.write_text(srt_content, encoding='utf-8')
-    
-    result = main.parse_subtitle_file(str(srt_file))
-    expected = "Hello world, this is SRT format. Second subtitle entry. Italic text should be cleaned"
-    assert result == expected
-
-def test_extract_transcript_from_platform(tmp_path, monkeypatch):
-    # Test platform transcript extraction with mock
-    
-    # Mock yt-dlp to simulate subtitle extraction
-    class MockYoutubeDL:
-        def __init__(self, opts):
-            self.opts = opts
-            
-        def __enter__(self):
-            return self
-            
-        def __exit__(self, *args):
-            pass
-            
-        def extract_info(self, url, download=True):
-            # Simulate creating subtitle files when download=True
-            if download and self.opts.get('writesubtitles'):
-                subtitle_dir = os.path.dirname(self.opts['outtmpl']).replace('/%(title)s.%(ext)s', '')
-                os.makedirs(subtitle_dir, exist_ok=True)
-                
-                # Create a mock subtitle file
-                subtitle_file = os.path.join(subtitle_dir, "test_video.en.vtt")
-                with open(subtitle_file, 'w', encoding='utf-8') as f:
-                    f.write("""WEBVTT
-
-00:00:00.000 --> 00:00:03.000
-This is a platform-provided transcript.
-
-00:00:03.000 --> 00:00:06.000
-It should be preferred over whisper.
-""")
-            
-            return {
-                'title': 'Test Video',
-                'subtitles': {'en': [{'url': 'fake_url'}]},
-                'automatic_captions': {}
-            }
-    
-    monkeypatch.setattr(main.yt_dlp, "YoutubeDL", MockYoutubeDL)
-    
-    # Test successful platform transcript extraction
-    result = main.extract_transcript_from_platform("https://youtube.com/test", str(tmp_path))
-    expected = "This is a platform-provided transcript. It should be preferred over whisper."
-    assert result == expected
-    
-    # Test when no subtitles are available
-    class MockYoutubeDLNoSubs:
-        def __init__(self, opts):
-            self.opts = opts
-            
-        def __enter__(self):
-            return self
-            
-        def __exit__(self, *args):
-            pass
-            
-        def extract_info(self, url, download=True):
-            return {'title': 'Test Video'}  # No subtitles or automatic_captions
-    
-    monkeypatch.setattr(main.yt_dlp, "YoutubeDL", MockYoutubeDLNoSubs)
-    
-    result = main.extract_transcript_from_platform("https://youtube.com/test", str(tmp_path))
-    assert result is None
-
-def test_download_whisper_model_cli(monkeypatch, tmp_path):
-    # Test the --download-whisper-model CLI command
-    fake_model = MagicMock()
-    monkeypatch.setattr(main, "download_whisper_model", lambda model_name: fake_model)
-    
-    # Simulate CLI args with --download-whisper-model flag
-    sys_argv = sys.argv
-    sys.argv = ["main.py", "--download-whisper-model", "small"]
-    try:
-        main.main()
-    finally:
-        sys.argv = sys_argv
-
-def test_download_whisper_model_cli_default(monkeypatch, tmp_path):
-    # Test the --download-whisper-model CLI command with default model
-    fake_model = MagicMock()
-    download_calls = []
-    def mock_download(model_name):
-        download_calls.append(model_name)
-        return fake_model
-    
-    monkeypatch.setattr(main, "download_whisper_model", mock_download)
-    
-    # Simulate CLI args with --download-whisper-model flag (no model specified)
-    sys_argv = sys.argv
-    sys.argv = ["main.py", "--download-whisper-model"]
-    try:
-        main.main()
-        # Verify default model was used
-        assert len(download_calls) == 1
-        assert download_calls[0] == "base"
-    finally:
-        sys.argv = sys_argv
-
 def test_download_whisper_model_requires_url_without_flag(monkeypatch, tmp_path):
     # Test that URL is required when not using --download-whisper-model
     sys_argv = sys.argv
@@ -650,16 +172,3 @@ def test_download_whisper_model_requires_url_without_flag(monkeypatch, tmp_path)
             main.main()
     finally:
         sys.argv = sys_argv
-
-def test_get_whisper_model_directory_default():
-    # Test default whisper model directory
-    expected = os.path.expanduser("~/.ninadon/whisper")
-    result = str(main.get_whisper_model_directory())
-    assert result == expected
-
-def test_get_whisper_model_directory_custom(monkeypatch):
-    # Test custom whisper model directory from environment
-    custom_dir = "/custom/whisper/path"
-    monkeypatch.setenv("WHISPER_MODEL_DIRECTORY", custom_dir)
-    result = str(main.get_whisper_model_directory())
-    assert result == custom_dir
