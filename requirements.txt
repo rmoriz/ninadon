@@ -5,3 +5,5 @@ requests
 Flask
 Flask-HTTPAuth
 ruff
+pytest
+pytest-cov
