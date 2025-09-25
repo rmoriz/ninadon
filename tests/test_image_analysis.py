@@ -82,20 +82,20 @@ class TestExtractStillImages:
         """Test image extraction from short video."""
         video_path = "/path/to/video.mp4"
         duration = 2.0  # 2 seconds
-        
-        # For short video, end timestamp should not be before 0.5s
-        expected_end = max(duration - 0.5, 0.5)  # Should be 0.5
-        
+
+        # For 2s video, end timestamp should be max(2.0 - 0.5, 0.5) = 1.5
+        expected_end = max(duration - 0.5, 0.5)  # Should be 1.5
+
         with patch('src.image_analysis.get_video_duration', return_value=duration), \
              patch('subprocess.run') as mock_run, \
              patch('src.image_analysis.print_flush'):
-            
+
             extract_still_images(video_path, str(tmp_path))
-            
+
             # Check the last timestamp (end timestamp)
             last_call_args = mock_run.call_args_list[-1][0][0]
             last_timestamp = float(last_call_args[2])
-            assert last_timestamp == 0.5
+            assert last_timestamp == 1.5
     
     def test_extract_still_images_ffmpeg_error(self, tmp_path):
         """Test image extraction with ffmpeg error."""

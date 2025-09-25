@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Install Deno (required for yt-dlp)
+      run: |
+        curl -fsSL https://deno.land/install.sh | sh
+        echo "$HOME/.deno/bin" >> $GITHUB_PATH
+
+    - name: Run ruff linting
+      run: |
+        ruff check src/
+        ruff format --check src/
+
+    - name: Run tests
+      run: |
+        PYTHONPATH=. pytest tests/ --tb=short
+
+    - name: Run tests with coverage (optional)
+      run: |
+        PYTHONPATH=. pytest tests/ --cov=src --cov-report=xml
+      continue-on-error: true
