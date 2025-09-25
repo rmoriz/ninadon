@@ -9,25 +9,32 @@
 
 ## Build, Lint, and Test Commands
 
-## Running Tests
+### Running Tests
 - **You must activate the .venv before running tests.**
 - On Unix/macOS:
   - `source .venv/bin/activate`
 - On Windows:
   - `.venv\Scripts\activate`
 - Then run tests with:
-  - `PYTHONPATH=. pytest tests/test_main.py`
-- To run a single test function:
-  - `PYTHONPATH=. pytest tests/test_main.py::test_func`
+  - `PYTHONPATH=. pytest tests/` (run all tests - 202 tests total)
+  - `PYTHONPATH=. pytest tests/test_main.py` (run specific test file)
+  - `PYTHONPATH=. pytest tests/test_main.py::test_func` (run single test function)
+  - `PYTHONPATH=. pytest tests/ -x` (stop on first failure)
+  - `PYTHONPATH=. pytest tests/ --tb=short` (short traceback format)
 - **All tests must pass before committing and pushing any changes.**
 - **Running the tests before every git commit or push is MANDATORY. This is a MUST, not a recommendation.**
 
+### Linting
+- **Lint code:** `ruff src/`
+- **Fix linting issues:** `ruff src/ --fix`
+- **Check specific file:** `ruff src/main.py`
+
+### Building and Running
 - **Install dependencies:** `pip install -r requirements.txt`
 - **Install Deno:** Ensure Deno is installed (required for future yt-dlp versions)
 - **Build Docker image:** `docker build .`
 - **Run app:** `python src/main.py <video_url>`
-- **Lint (recommended):** `ruff src/` or `flake8 src/` (add to requirements if needed)
-- **Test:** No tests found. If using pytest: `pytest tests/test_main.py::test_func`
+- **Run web interface:** `python src/main.py --web`
 
 ## Code Style Guidelines
 - **Imports:** Standard library, then third-party, then local imports.
