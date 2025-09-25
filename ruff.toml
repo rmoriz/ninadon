@@ -29,8 +29,6 @@ exclude = [
     "node_modules",
     "site-packages",
     "venv",
-    # Exclude legacy files
-    "src/main_original.py",
 ]
 
 # Same as Black
