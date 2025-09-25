@@ -10,7 +10,7 @@ import base64
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from main import create_web_app, JobManager
+from src.web_app import create_web_app, JobManager
 
 class TestWebApp(unittest.TestCase):
     def setUp(self):
@@ -53,7 +53,7 @@ class TestWebApp(unittest.TestCase):
         data = json.loads(response.data)
         self.assertEqual(data, [])
 
-    @patch('main.process_video_async')
+    @patch('src.web_app.process_video_async')
     def test_api_process_video(self, mock_process):
         """Test API process endpoint."""
         test_data = {
@@ -160,7 +160,7 @@ class TestWebAppIntegration(unittest.TestCase):
         if 'WEB_PASSWORD' in os.environ:
             del os.environ['WEB_PASSWORD']
 
-    @patch('main.process_video_async')
+    @patch('src.web_app.process_video_async')
     def test_complete_workflow(self, mock_process):
         """Test a complete workflow from job creation to status check."""
         # Create a job
@@ -180,7 +180,7 @@ class TestWebAppIntegration(unittest.TestCase):
         job_id = data['job_id']
         
         # Check job status
-        response = self.client.get(f'/api/status/{job_id}', headers=self.auth_headers)
+        response = self.client.get(f'/api/jobs/{job_id}', headers=self.auth_headers)
         self.assertEqual(response.status_code, 200)
         job_data = json.loads(response.data)
         
