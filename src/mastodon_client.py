@@ -2,11 +2,23 @@
 """Mastodon client for posting videos and status updates."""
 
 import time
+from urllib.parse import urlparse
 
 from mastodon import Mastodon
 
 from .config import Config
 from .utils import print_flush
+
+
+def check_instance_blacklist(base_url):
+    """Check if the Mastodon instance is blacklisted."""
+    parsed = urlparse(base_url)
+    hostname = parsed.hostname or parsed.netloc
+    if hostname in Config.INSTANCE_BLACKLIST:
+        reason = Config.INSTANCE_BLACKLIST[hostname]
+        raise RuntimeError(
+            f"Mastodon instance '{hostname}' is not supported. Reason: {reason}"
+        )
 
 
 def wait_for_media_processing(mastodon, media_id, timeout=None, poll_interval=2):
@@ -29,6 +41,7 @@ def wait_for_media_processing(mastodon, media_id, timeout=None, poll_interval=2)
 def post_to_mastodon(summary, video_path, source_url, mime_type, video_description):
     """Post video and summary to Mastodon."""
     config = Config()
+    check_instance_blacklist(config.MASTODON_BASE_URL)
     mastodon = Mastodon(
         access_token=config.MASTODON_ACCESS_TOKEN, api_base_url=config.MASTODON_BASE_URL
     )

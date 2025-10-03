@@ -99,6 +99,10 @@ class Config:
 
     WEB_PORT = int(getenv("WEB_PORT", "5000"))
 
+    INSTANCE_BLACKLIST = {
+        "mastodon.social": "toxic moderation",
+    }
+
     @classmethod
     def get_data_root(cls):
         """Get the root data directory, creating it if it doesn't exist."""

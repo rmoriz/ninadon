@@ -4,7 +4,11 @@
 import time
 import pytest
 from unittest.mock import MagicMock, patch
-from src.mastodon_client import wait_for_media_processing, post_to_mastodon
+from src.mastodon_client import (
+    wait_for_media_processing,
+    post_to_mastodon,
+    check_instance_blacklist,
+)
 
 
 class TestWaitForMediaProcessing:
@@ -413,3 +417,55 @@ class TestMastodonClientIntegration:
             status_call = mock_mastodon.status_post.call_args[0][0]
             assert "Integration test summary" in status_call
             assert "Source: https://integration.test/source" in status_call
+
+
+class TestInstanceBlacklist:
+    """Test Mastodon instance blacklist functionality."""
+
+    def test_check_instance_blacklist_blocked(self):
+        """Test that blacklisted instances are rejected."""
+        with pytest.raises(
+            RuntimeError, match="mastodon.social.*not supported.*toxic moderation"
+        ):
+            check_instance_blacklist("https://mastodon.social")
+
+    def test_check_instance_blacklist_blocked_with_trailing_slash(self):
+        """Test blacklist check with trailing slash."""
+        with pytest.raises(
+            RuntimeError, match="mastodon.social.*not supported.*toxic moderation"
+        ):
+            check_instance_blacklist("https://mastodon.social/")
+
+    def test_check_instance_blacklist_allowed(self):
+        """Test that non-blacklisted instances are allowed."""
+        check_instance_blacklist("https://mastodon.example.com")
+
+    def test_check_instance_blacklist_allowed_subdomain(self):
+        """Test that subdomains of blacklisted domains are allowed."""
+        check_instance_blacklist("https://test.mastodon.social")
+
+    def test_post_to_mastodon_blocked_instance(self, tmp_path):
+        """Test that posting to blacklisted instance fails."""
+        video_file = tmp_path / "test_video.mp4"
+        video_file.write_bytes(b"fake video content")
+
+        mock_config = MagicMock()
+        mock_config.MASTODON_ACCESS_TOKEN = "test_token"
+        mock_config.MASTODON_BASE_URL = "https://mastodon.social"
+
+        with patch("src.mastodon_client.Config") as mock_config_class, patch(
+            "src.mastodon_client.Mastodon"
+        ), pytest.raises(
+            RuntimeError, match="mastodon.social.*not supported.*toxic moderation"
+        ):
+
+            mock_config_class.return_value = mock_config
+            mock_config_class.INSTANCE_BLACKLIST = {"mastodon.social": "toxic moderation"}
+
+            post_to_mastodon(
+                "Test summary",
+                str(video_file),
+                "https://example.com/video",
+                "video/mp4",
+                "Video description",
+            )
